@@ -53,9 +53,9 @@ ij.jar:
 
 build/$(ARCH)/libTubularityMeasure.$(LIBRARY_EXTENSION) : libTubularityMeasure.$(LIBRARY_EXTENSION)
 
-TubularityMeasure_Plugin.jar : FijiITKInterface/TubularityMeasure.class FijiITKInterface/TubularityMeasure_Plugin.class plugins.config fiji/jni/LibraryLoader.class build/$(ARCH)/libTubularityMeasure.$(LIBRARY_EXTENSION) build/macosx/libTubularityMeasure.dylib 
+TubularityMeasure_Plugin.jar : FijiITKInterface/TubularityMeasure.class FijiITKInterface/TubularityMeasure_Plugin.class plugins.config fiji/jni/LibraryLoader.class build/$(ARCH)/libTubularityMeasure.$(LIBRARY_EXTENSION) # build/macosx/libTubularityMeasure.dylib
 	mkdir -p plugins
-	jar cvf plugins/TubularityMeasure_Plugin.jar FijiITKInterface/TubularityMeasure.class FijiITKInterface/TubularityMeasure_Plugin.class plugins.config fiji/jni/LibraryLoader.class -C build $(ARCH)/libTubularityMeasure.$(LIBRARY_EXTENSION) build/macosx/libTubularityMeasure.dylib
+	jar cvf plugins/TubularityMeasure_Plugin.jar FijiITKInterface/TubularityMeasure.class FijiITKInterface/TubularityMeasure_Plugin.class plugins.config fiji/jni/LibraryLoader.class -C build $(ARCH)/libTubularityMeasure.$(LIBRARY_EXTENSION) # build/macosx/libTubularityMeasure.dylib
 
 libTubularityMeasure.$(LIBRARY_EXTENSION) : FijiITKInterface/FijiITKInterface_TubularityMeasure.h c++/TubularityJNIImplementation.cpp
 	mkdir -p build/$(ARCH)/
