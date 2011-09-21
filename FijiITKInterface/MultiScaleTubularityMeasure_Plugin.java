@@ -235,17 +235,18 @@ public class MultiScaleTubularityMeasure_Plugin implements MouseListener, MouseM
 			ArrayList<Color3f> tubeColors = new ArrayList<Color3f>();
 
 			int numberOfPoints = size / 4;
-			double [] x_points = new double[size];
-			double [] y_points = new double[size];
-			double [] z_points = new double[size];
-			double [] radiuses = new double[size];
+			double [] x_points = new double[numberOfPoints];
+			double [] y_points = new double[numberOfPoints];
+			double [] z_points = new double[numberOfPoints];
+			double [] radiuses = new double[numberOfPoints];
 
-			for (int i = 0; i < size; ++i) {
+			for (int i = 0; i < numberOfPoints; ++i) {
 				ind = i * 4;
 				x_points[i] = Path[ind];
 				y_points[i] = Path[ind+1];
 				z_points[i] = Path[ind+2];
-				radiuses[i] = Path[ind+4];
+				radiuses[i] = Path[ind+3];
+
 			}
 
 			double [][][] allPoints = Pipe.makeTube(x_points, // double[]
