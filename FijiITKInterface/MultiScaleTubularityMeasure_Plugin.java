@@ -247,6 +247,13 @@ public class MultiScaleTubularityMeasure_Plugin implements MouseListener, MouseM
 				z_points[i] = Path[ind+2];
 				radiuses[i] = Path[ind+3];
 
+				/*
+				System.out.println("------------------------------------------------------------------------");
+				System.out.println("x_points[i]: "+x_points[i]);
+				System.out.println("y_points[i]: "+y_points[i]);
+				System.out.println("z_points[i]: "+z_points[i]);
+				System.out.println("radiuses[i]: "+radiuses[i]);
+                */
 			}
 
 			double [][][] allPoints = Pipe.makeTube(x_points, // double[]
