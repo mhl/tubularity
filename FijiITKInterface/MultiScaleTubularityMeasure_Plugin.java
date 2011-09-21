@@ -154,65 +154,6 @@ public class MultiScaleTubularityMeasure_Plugin implements MouseListener, MouseM
 
     }
 
-
-    public BranchGroup Create_Cylinder(Point2D.Float p1, Point2D.Float p2, float Slice1, float Slice2, float d1, float d2){
-	
-		float z1 = Slice1*PxlDth;
-		float z2 = Slice2*PxlDth;	
-		
-		BranchGroup parent = new BranchGroup();
-    		Vector3f crossVec = new Vector3f();
-		Vector3f YAXIS = new Vector3f(0, 1, 0);
-		Vector3f vec_dir = new Vector3f((float)(p2.getX() - p1.getX()), (float)(p2.getY() - p1.getY()), z2 - z1);
-		Vector3f middlepos = new Vector3f((float)(p2.getX() + p1.getX()), (float)(p2.getY() + p1.getY()), z2 + z1);
-		
-
-		float dist = (float)Math.sqrt(vec_dir.x*vec_dir.x + vec_dir.y*vec_dir.y + vec_dir.z*vec_dir.z);
-		vec_dir.normalize();
-
-		crossVec.cross(YAXIS, vec_dir);
-
-   		// Creation de la transformation (translation+rotation)
-
-		Transform3D tempTrans = new Transform3D();
-    		Transform3D tempTrans2 = new Transform3D();
-		AxisAngle4f tempAA = new AxisAngle4f();
-    		// Find amount of rotation and put into matrix
-        	tempAA.set(crossVec, (float)Math.acos(YAXIS.dot(vec_dir)));
-        	tempTrans.set(tempAA);
-        
-       		 // Transform to midpoint between two nodes
-       		 tempTrans2.setIdentity();
-        	 tempTrans2.setTranslation(new Vector3f(middlepos.x/2, middlepos.y/2, middlepos.z/2));
-           
-        	 tempTrans2.mul(tempTrans);  
-
-    		// Creation du groupe qui va contenir la transformation
-    		TransformGroup transformGroup = new TransformGroup(tempTrans2);
-		transformGroup.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
-
-    		// Creation de l'objet pour lequel on va appliquer cette transformation
-		Appearance cylinderAppearance = new Appearance();
-       		TransparencyAttributes transAttrs = new TransparencyAttributes(TransparencyAttributes.FASTEST, 0.5f);
-		cylinderAppearance.setTransparencyAttributes(transAttrs);
-		//cylinderAppearance.setColoringAttributes(new Color3f(1.0f, 0.0f, 0.0f), ColoringAttributes.FASTEST);
-		
-    		Cylinder cylinder = new Cylinder(d1, dist, cylinderAppearance);
-
-    		// on l'ajoute a l'objet TransformGroup
-    		transformGroup.addChild(cylinder);
-
-    		// L'objet TransformGroup est le fils de l'objet racine (BranchGroup)
-    		parent.addChild(transformGroup);
-
-		// Compilation de la scene 3D
-    		parent.compile();
-		
-		return parent;
-    }
-
-
-
 	public void mouseClicked(MouseEvent me) {
   	}
 
@@ -287,22 +228,51 @@ public class MultiScaleTubularityMeasure_Plugin implements MouseListener, MouseM
 			float radius1, radius2;int ind =0;
 			float [] Path = new float[w*h*NSlices];
 			int size = ti.GetPath(Path);
-			
-			while(ind<size-6){
-		
-				Point2D.Float p1 = new Point2D.Float(Path[ind],Path[ind+1]); float z1 = Path[ind+2]; radius1 = 2*Path[ind+3];
-				ind+=4;
-		
-				Point2D.Float p2 = new Point2D.Float(Path[ind],Path[ind+1]); float z2 = Path[ind+2]; radius2 = 2*Path[ind+3];
-				ind+=4;
 
-				BranchGroup parent = Create_Cylinder(p1, p2, z1, z2, radius1, radius2);
-    		
-				// Attachement de la scene 3D a l'objet SimpleUniverse
-    				univ.addBranchGraph(parent);
+			boolean resample = false;
+			Color3f realColor = new Color3f(Color.magenta);
+			ArrayList<Color3f> tubeColors = new ArrayList<Color3f>();
+
+			int numberOfPoints = size / 4;
+			double [] x_points = new double[size];
+			double [] y_points = new double[size];
+			double [] z_points = new double[size];
+			double [] radiuses = new double[size];
+
+			for (int i = 0; i < size; ++i) {
+				ind = i * 4;
+				x_points[i] = Path[ind];
+				y_points[i] = Path[ind+1];
+				z_points[i] = Path[ind+2];
+				radiuses[i] = Path[ind+4];
 			}
-			/////////////////////////////////////////////
 
+			double [][][] allPoints = Pipe.makeTube(x_points, // double[]
+													y_points, // double[]
+													z_points, // double[]
+													radiuses, // double[]
+													resample ? 2 : 1,	   // resample - 1 means just "use mean distance between points", 3 is three times that, etc.
+													12,		 // "parallels" (12 means cross-sections are dodecagons)
+													resample,   // do_resample
+													realColor,
+													null,
+													tubeColors);
+
+			if (allPoints == null) {
+				IJ.error("Generating the 3D surface visualization failed");
+				return;
+			}
+
+			java.util.List<Color3f> vertexColorList = new ArrayList<Color3f>();
+			java.util.List<Point3f> triangles = Pipe.generateTriangles(allPoints,
+																	   1, // scale
+																	   tubeColors,
+																	   vertexColorList);
+
+			Content content3D = univ.addTriangleMesh(triangles,
+													 vertexColorList,
+													 "Example Trace");
+			content3D.setLocked(true);
 		
 			position_checked = false;
 		}
