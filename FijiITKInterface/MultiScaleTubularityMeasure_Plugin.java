@@ -151,6 +151,7 @@ public class MultiScaleTubularityMeasure_Plugin implements MouseListener, MouseM
 	 
 	// Add the image as an isosurface
 	Content c = univ.addVoltex(imagePlus);
+	c.setLocked(true);
 
     }
 
