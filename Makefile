@@ -6,7 +6,8 @@ uname_M := $(shell sh -c 'uname -m 2>/dev/null || echo not')
 ifeq ($(ARCH),)
 ifeq ($(uname_S),Linux)
 JAVA_ARCH_NAME=linux
-	JDK_INCLUDE_PATH=/usr/lib/jvm/java-6-openjdk/include
+	# JDK_INCLUDE_PATH=/usr/lib/jvm/java-6-openjdk/include/
+	JDK_INCLUDE_PATH=/usr/lib/jvm/java-1.6.0-openjdk/include/
 	LIBRARY_EXTENSION=so
 ifeq ($(uname_M),x86_64)
          ARCH=linux64
@@ -25,17 +26,17 @@ p		JDK_INCLUDE_PATH= /usr/lib/jvm/java-1.6.0-openjdk/include/
 endif
 endif
 
-CLASSPATH=.:ij.jar:/home/mark/fiji/plugins/3D_Viewer.jar:/usr/share/java/j3dutils.jar:/usr/share/java/j3dcore.jar:/usr/share/java/vecmath.jar
+CLASSPATH=.:ij.jar:/home/bonnier/Desktop/Fiji_ItK_tubularity/Fiji_plugin/ImageJ_3D_Viewer.jar:/home/bonnier/Desktop/Fiji.app/java/linux-amd64/jdk1.6.0_24/jre/lib/ext/j3dutils.jar:/home/bonnier/Desktop/Fiji.app/java/linux-amd64/jdk1.6.0_24/jre/lib/ext/j3dcore.jar:/home/bonnier/Desktop/Fiji.app/java/linux-amd64/jdk1.6.0_24/jre/lib/ext/vecmath.jar
 
-ITK_HEADER_PREFIX= /home/mark/cvlab-work/ITK
-ITK_LIB_LOCATION=  $(ITK_HEADER_PREFIX)/bin
+ITK_HEADER_PREFIX= /home/bonnier/itk/InsightToolkit-3.20.0
+ITK_LIB_LOCATION=  /home/bonnier/itk/InsightToolkit-3.20.0/bin
 
-LINK_LIBRARIES_ITK= -lITKIO -lITKAlgorithms -litkopenjpeg -litkpng -litktiff -litkzlib -lITKniftiio -lITKSpatialObject -lITKMetaIO -lITKDICOMParser -lITKEXPAT -lITKznz -lITKNrrdIO -lITKStatistics -litkNetlibSlatec -lITKNumerics -litkv3p_netlib -litkvnl -litkvcl -litkvnl_algo -litkvnl_inst -lITKCommon -litksys -litkgdcm -lpthread -lm -L$(ITK_LIB_LOCATION) -ldl 
+LINK_LIBRARIES_ITK= -lITKIO -lITKAlgorithms -litkopenjpeg -litkpng -litktiff -litkzlib -lITKniftiio -lITKSpatialObject -lITKMetaIO -lITKDICOMParser -lITKEXPAT -lITKznz -lITKNrrdIO -lITKStatistics -litkNetlibSlatec -lITKNumerics -litkv3p_netlib -litkvnl -litkvcl -litkvnl_algo -litkvnl_inst -lITKCommon -litksys -lgdcmDICT -lgdcmIOD -lgdcmDSED -lgdcmCommon -lgdcmjpeg8 -lgdcmjpeg12 -lgdcmjpeg16  -lgdcmcharls -lpthread -lm -L$(ITK_LIB_LOCATION) -ldl 
 
 
-INCLUDE_ITK=-ftemplate-depth-50 -Wall -Wno-deprecated -msse2 -I$(ITK_HEADER_PREFIX) -I$(ITK_HEADER_PREFIX)/Code/Algorithms -I$(ITK_HEADER_PREFIX)/Code/BasicFilters -I$(ITK_HEADER_PREFIX)/Code/Common -I$(ITK_HEADER_PREFIX)/Code/Numerics -I$(ITK_HEADER_PREFIX)/Code/IO -I$(ITK_HEADER_PREFIX)/Code/Numerics/FEM -I$(ITK_HEADER_PREFIX)/Code/Numerics/NeuralNetworks -I$(ITK_HEADER_PREFIX)/Code/SpatialObject -I$(ITK_HEADER_PREFIX)/Code/Review -I$(ITK_HEADER_PREFIX)/Utilities/MetaIO -I$(ITK_HEADER_PREFIX)/Utilities/NrrdIO -I$(ITK_HEADER_PREFIX)/bin/Utilities/NrrdIO -I$(ITK_HEADER_PREFIX)/Utilities/DICOMParser -I$(ITK_HEADER_PREFIX)/bin/Utilities/DICOMParser -I$(ITK_HEADER_PREFIX)/bin/Utilities/expat -I$(ITK_HEADER_PREFIX)/Utilities/expat -I$(ITK_HEADER_PREFIX)/Utilities/nifti/niftilib -I$(ITK_HEADER_PREFIX)/Utilities/nifti/znzlib -I$(ITK_HEADER_PREFIX)/Utilities/itkExtHdrs -I$(ITK_HEADER_PREFIX)/bin/Utilities -I$(ITK_HEADER_PREFIX)/Utilities -I$(ITK_HEADER_PREFIX)/Code/Numerics/Statistics -I$(ITK_HEADER_PREFIX)/Utilities/vxl/v3p/netlib -I$(ITK_HEADER_PREFIX)/Utilities/vxl/vcl -I$(ITK_HEADER_PREFIX)/Utilities/vxl/core -I$(ITK_HEADER_PREFIX)/bin/Utilities/vxl/v3p/netlib -I$(ITK_HEADER_PREFIX)/bin/Utilities/vxl/vcl -I$(ITK_HEADER_PREFIX)/bin/Utilities/vxl/core -I$(ITK_HEADER_PREFIX)/bin/Utilities/gdcm -I$(ITK_HEADER_PREFIX)/Utilities/gdcm/src  -I$ /home/mark/cvlab-work/latest-src/src/itkCVLab
+INCLUDE_ITK=-ftemplate-depth-50 -Wall -Wno-deprecated -msse2 -I$(ITK_HEADER_PREFIX) -I$(ITK_HEADER_PREFIX)/Code/Algorithms -I$(ITK_HEADER_PREFIX)/Code/BasicFilters -I$(ITK_HEADER_PREFIX)/Code/Common -I$(ITK_HEADER_PREFIX)/Code/Numerics -I$(ITK_HEADER_PREFIX)/Code/IO -I$(ITK_HEADER_PREFIX)/Code/Numerics/FEM -I$(ITK_HEADER_PREFIX)/Code/Numerics/NeuralNetworks -I$(ITK_HEADER_PREFIX)/Code/SpatialObject -I$(ITK_HEADER_PREFIX)/Code/Review -I$(ITK_HEADER_PREFIX)/Utilities/MetaIO -I$(ITK_HEADER_PREFIX)/Utilities/NrrdIO -I$(ITK_HEADER_PREFIX)/bin/Utilities/NrrdIO -I$(ITK_HEADER_PREFIX)/Utilities/DICOMParser -I$(ITK_HEADER_PREFIX)/bin/Utilities/DICOMParser -I$(ITK_HEADER_PREFIX)/bin/Utilities/expat -I$(ITK_HEADER_PREFIX)/Utilities/expat -I$(ITK_HEADER_PREFIX)/Utilities/nifti/niftilib -I$(ITK_HEADER_PREFIX)/Utilities/nifti/znzlib -I$(ITK_HEADER_PREFIX)/Utilities/itkExtHdrs -I$(ITK_HEADER_PREFIX)/bin/Utilities -I$(ITK_HEADER_PREFIX)/Utilities -I$(ITK_HEADER_PREFIX)/Code/Numerics/Statistics -I$(ITK_HEADER_PREFIX)/Utilities/vxl/v3p/netlib -I$(ITK_HEADER_PREFIX)/Utilities/vxl/vcl -I$(ITK_HEADER_PREFIX)/Utilities/vxl/core -I$(ITK_HEADER_PREFIX)/bin/Utilities/vxl/v3p/netlib -I$(ITK_HEADER_PREFIX)/bin/Utilities/vxl/vcl -I$(ITK_HEADER_PREFIX)/bin/Utilities/vxl/core -I$(ITK_HEADER_PREFIX)/bin/Utilities/gdcm -I$(ITK_HEADER_PREFIX)/Utilities/gdcm/src  -I$ /home/bonnier/Desktop/Fiji_ItK_tubularity/Fiji_plugin_multiplatform/itkCVLab
 
-all : MultiScaleTubularityMeasure_Plugin.jar
+all : plugins/TubularityMeasure_Plugin.jar
 
 test :
 	java -jar ij.jar -eval 'run("Bridge (174K)"); run("Tubularity Measure Plugin");'
@@ -51,19 +52,18 @@ superclean: clean
 ij.jar:
 	wget http://rsb.info.nih.gov/ij/upgrade/ij.jar
 
-build/$(ARCH)/libMultiScaleTubularityMeasure.$(LIBRARY_EXTENSION) : libMultiScaleTubularityMeasure.$(LIBRARY_EXTENSION)
+build/$(ARCH)/libTubularityMeasure.$(LIBRARY_EXTENSION) : libTubularityMeasure.$(LIBRARY_EXTENSION)
 
-MultiScaleTubularityMeasure_Plugin.jar : FijiITKInterface/MultiScaleTubularityMeasure.class FijiITKInterface/MultiScaleTubularityMeasure_Plugin.class plugins.config fiji/jni/LibraryLoader.class build/$(ARCH)/libMultiScaleTubularityMeasure.$(LIBRARY_EXTENSION) build/macosx/libTubularityMeasure.dylib 
+plugins/TubularityMeasure_Plugin.jar : FijiITKInterface/TubularityMeasure.class FijiITKInterface/TubularityMeasure_Plugin.class plugins.config fiji/jni/LibraryLoader.class build/$(ARCH)/libTubularityMeasure.$(LIBRARY_EXTENSION) build/macosx/libTubularityMeasure.dylib 
 	mkdir -p plugins
-	jar cvf plugins/MultiScaleTubularityMeasure_Plugin.jar FijiITKInterface/MultiScaleTubularityMeasure.class FijiITKInterface/MultiScaleTubularityMeasure_Plugin.class plugins.config fiji/jni/LibraryLoader.class -C build $(ARCH)/libMultiScaleTubularityMeasure.$(LIBRARY_EXTENSION) build/macosx/libTubularityMeasure.dylib
+	jar cvf plugins/TubularityMeasure_Plugin.jar FijiITKInterface/TubularityMeasure.class FijiITKInterface/TubularityMeasure_Plugin.class plugins.config fiji/jni/LibraryLoader.class -C build $(ARCH)/libTubularityMeasure.$(LIBRARY_EXTENSION) build/macosx/libTubularityMeasure.dylib
 
-libMultiScaleTubularityMeasure.$(LIBRARY_EXTENSION) : FijiITKInterface/FijiITKInterface_MultiScaleTubularityMeasure.h c++/MultiScaleTubularityJNIImplementation.cpp
+libTubularityMeasure.$(LIBRARY_EXTENSION) : FijiITKInterface/FijiITKInterface_TubularityMeasure.h c++/TubularityJNIImplementation.cpp
 	mkdir -p build/$(ARCH)/
-	g++ -Wall -O3 -o build/$(ARCH)/$@ -I../c++ c++/MultiScaleTubularityJNIImplementation.cpp -fPIC -shared  -I$(JDK_INCLUDE_PATH) -I$(JDK_INCLUDE_PATH)/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/  $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK)
+	g++ -Wall -O3 -o build/$(ARCH)/$@ -I../c++ c++/TubularityJNIImplementation.cpp -fPIC -shared  -I$(JDK_INCLUDE_PATH) -I$(JDK_INCLUDE_PATH)/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/  $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK)
 
-FijiITKInterface/FijiITKInterface_MultiScaleTubularityMeasure.h : FijiITKInterface/MultiScaleTubularityMeasure.class
-	javah -classpath $(CLASSPATH) -jni -d FijiITKInterface FijiITKInterface.MultiScaleTubularityMeasure
+FijiITKInterface/FijiITKInterface_TubularityMeasure.h : FijiITKInterface/TubularityMeasure.class
+	javah -classpath $(CLASSPATH) -jni -d FijiITKInterface FijiITKInterface.TubularityMeasure
 
 %.class : %.java ij.jar
-	javac -cp $(CLASSPATH)  $<
-
+	@javac -cp $(CLASSPATH)  $<

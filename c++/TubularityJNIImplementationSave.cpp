@@ -4,7 +4,7 @@
 
 #include "FijiITKInterface_TubularityMeasure.h"
 
-#include "itkHessianMainPrincipleCurvatureObjectnessImageFilter.h"
+//#include "itkHessianMainPrincipleCurvatureObjectnessImageFilter.h"
 //#include "itkHessianToObjectnessMeasureImageFilter.h"
 #include "itkHessian3DToVesselnessMeasureImageFilter.h"
 #include "itkMultiScaleHessianBasedMeasureImageFilter2.h"
@@ -54,7 +54,7 @@ const unsigned int maxDimension = 3;
 
 // Main code goes here! 
 template<class TInputPixel, unsigned int VDimension> 
-typename itk::Image<float,VDimension+1>::Pointer
+typename itk::Image<float,VDimension>::Pointer
 Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double sigmaMin, double sigmaMax, unsigned int numberOfScales)
 {	
 	// Define the dimension of the images
@@ -147,7 +147,7 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 
 	bool generateScaleImage = false;
 	bool generateHessianMatrixImage = false;
-	bool generateScaleSpaceTubularityScoreImage = true;
+	bool generateScaleSpaceTubularityScoreImage = false;
 
 	
        	// typenames needed
@@ -191,21 +191,21 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 		}
 										
 		// Writing the output image.
-		typename OutputScaleSpaceImageType::Pointer tubularityScoreImage;
+		typename OutputImageType::Pointer tubularityScoreImage;
 		if( normalizeTubularityImageBtw0And1 ){
-			typename MinMaxCalculatorForScaleSpaceImageType::Pointer minMaxCalc = MinMaxCalculatorType::New();
-			minMaxCalc->SetImage( FilterObjectPtr->GetNPlus1DHessianOutput() );
+			typename MinMaxCalculatorType::Pointer minMaxCalc = MinMaxCalculatorType::New();
+			minMaxCalc->SetImage( FilterObjectPtr->GetOutput() );
 			minMaxCalc->Compute();
 																				
-			typename ShiftScaleFilterForScaleSpaceImageType::Pointer shiftScaleFilter = ShiftScaleFilterType::New();
-			shiftScaleFilter->SetInput( FilterObjectPtr->GetNPlus1DHessianOutput() );
+			typename ShiftScaleFilterType::Pointer shiftScaleFilter = ShiftScaleFilterType::New();
+			shiftScaleFilter->SetInput( FilterObjectPtr->GetOutput() );
 			shiftScaleFilter->SetShift( -minMaxCalc->GetMinimum() );
 			shiftScaleFilter->SetScale( 1 / (minMaxCalc->GetMaximum() - minMaxCalc->GetMinimum()) );
 			shiftScaleFilter->Update();
 			tubularityScoreImage = shiftScaleFilter->GetOutput();
 		}
 		else{
-			tubularityScoreImage = FilterObjectPtr->ShiftScaleFilterForScaleSpaceImageType();
+			tubularityScoreImage = FilterObjectPtr->GetOutput();
 		}
 
 		return tubularityScoreImage;
@@ -241,7 +241,7 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_TubularityMeasure_OrientedFlux(JNIE
 	unsigned char * InputImageData = (unsigned char *) jbs;
 	//Allocates an itk image with the 2D buffered data
    	typedef itk::Image<unsigned char, 3>  ImageType;
-	typedef itk::Image<float, 4> 	      OutputImageType;
+	typedef itk::Image<float, 3> 	      OutputImageType;
 
 	ImageType::Pointer itkImageP = ImageType::New();
 
