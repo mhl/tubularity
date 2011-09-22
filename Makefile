@@ -1,4 +1,6 @@
 .PHONY : all clean test
+.PRECIOUS : build/linux64/libMultiScaleTubularityMeasure.so \
+	build/linux64/libTubularityMeasure.so
 
 # Ensure the JDK_INCLUDE_PATH is defined:
 #
