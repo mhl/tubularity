@@ -3,3 +3,4 @@
 /plugins/*.jar
 /build
 /ij.jar
+compile.sh
