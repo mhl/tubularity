@@ -133,10 +133,10 @@ INCLUDE_ITK=-ftemplate-depth-50 -Wall -Wno-deprecated -msse2 -I$(ITK) \
 	-I$(ITK)/Utilities/gdcm/src \
 	-IitkCVLab
 
-all : plugins/MultiScaleTubularityMeasure_Plugin.jar
+all : plugins/TubularityMeasure_Plugin.jar
 
 test :
-	java -jar ij.jar -eval 'run("Bridge (174K)"); run("MultiScaleTubularity Measure Plugin");'
+	java -jar ij.jar -eval 'run("Bridge (174K)"); run("Tubularity Measure Plugin");'
 
 clean :
 	rm -fv *.class */*.class *.o *.$(LIBRARY_EXTENSION)
