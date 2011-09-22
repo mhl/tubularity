@@ -98,7 +98,7 @@ LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
 	-litksys \
 	-lpthread \
 	-lm \
-	-ldlx
+	-ldl
 
 INCLUDE_ITK=-ftemplate-depth-50 -Wall -Wno-deprecated -msse2 -I$(ITK) \
 	-I$(ITK)/Code/Algorithms \
