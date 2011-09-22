@@ -235,17 +235,21 @@ public class MultiScaleTubularityMeasure_Plugin implements MouseListener, MouseM
 			ArrayList<Color3f> tubeColors = new ArrayList<Color3f>();
 
 			int numberOfPoints = size / 4;
-			double [] x_points = new double[numberOfPoints];
-			double [] y_points = new double[numberOfPoints];
-			double [] z_points = new double[numberOfPoints];
-			double [] radiuses = new double[numberOfPoints];
-
+			double [] x_points_old = new double[numberOfPoints];
+			double [] y_points_old = new double[numberOfPoints];
+			double [] z_points_old = new double[numberOfPoints];
+			double [] radiuses_old = new double[numberOfPoints];
+			int index = 0;
 			for (int i = 0; i < numberOfPoints; ++i) {
+			    if(i%8 == 0){
+				
 				ind = i * 4;
-				x_points[i] = Path[ind];
-				y_points[i] = Path[ind+1];
-				z_points[i] = Path[ind+2];
-				radiuses[i] = Path[ind+3];
+				x_points_old[index] = Path[ind];
+				y_points_old[index] = Path[ind+1];
+				z_points_old[index] = Path[ind+2];
+				radiuses_old[index] = Path[ind+3];
+				index++;
+			    }
 
 				/*
 				System.out.println("------------------------------------------------------------------------");
@@ -253,8 +257,21 @@ public class MultiScaleTubularityMeasure_Plugin implements MouseListener, MouseM
 				System.out.println("y_points[i]: "+y_points[i]);
 				System.out.println("z_points[i]: "+z_points[i]);
 				System.out.println("radiuses[i]: "+radiuses[i]);
-                */
+
+				if( ((i / 5) % 2) == 0 )
+				radiuses[i] = 10;*/
 			}
+			double [] x_points = new double[index];
+			double [] y_points = new double[index];
+			double [] z_points = new double[index];
+			double [] radiuses = new double[index];
+
+			System.arraycopy( x_points_old, 0, x_points, 0, index );
+			System.arraycopy( y_points_old, 0, y_points, 0, index );
+			System.arraycopy( z_points_old, 0, z_points, 0, index );
+			System.arraycopy( radiuses_old, 0, radiuses, 0, index );
+
+			System.out.println("Adding "+numberOfPoints+" points with makeTube");
 
 			double [][][] allPoints = Pipe.makeTube(x_points, // double[]
 													y_points, // double[]

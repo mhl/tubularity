@@ -4,14 +4,14 @@
 #
 # Examples:
 # On Linux it may well be:
-#   /usr/lib/jvm/java-6-openjdk/include/
+#   /usr/lib/jvm/java-6-openjdk/
 # On Mac OS:
 #   /usr/lib/jvm/java-1.6.0-openjdk/include/
 # On Windows:
 #   [not sure yet]
 
-ifndef JDK_INCLUDE_PATH
-$(error The environment variable JDK_INCLUDE_PATH must be defined.)
+ifndef JDK_HOME
+$(error The environment variable JDK_HOME must be defined.)
 endif
 
 # You must also set the environment variable FIJI_BINARY to point
@@ -164,7 +164,7 @@ superclean: clean
 
 build/$(ARCH)/lib%.$(LIBRARY_EXTENSION) : FijiITKInterface/FijiITKInterface_%.h c++/%JNIImplementation.cpp
 	mkdir -p build/$(ARCH)/
-	g++ -Wall -O3 -o $@ -I../c++ c++/$*JNIImplementation.cpp -fPIC -shared  -I$(JDK_INCLUDE_PATH) -I$(JDK_INCLUDE_PATH)/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/  $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK)
+	g++ -Wall -O3 -o $@ -I../c++ c++/$*JNIImplementation.cpp -fPIC -shared  -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/  $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK)
 
 FijiITKInterface/FijiITKInterface_%.h : FijiITKInterface/%.class
 	$(FIJI_LAUNCHER) --javah --class-path=. -jni -d FijiITKInterface FijiITKInterface.$*

@@ -4,7 +4,7 @@
 # make with the right environment variables set.  You
 # should customize these and save this file as compile.sh
 
-export JDK_INCLUDE_PATH=/usr/lib/jvm/java-6-openjdk/include/
+export JDK_HOME=/usr/lib/jvm/java-6-openjdk/
 export FIJI_LAUNCHER=/home/mark/fiji/fiji
 export ITK=/home/mark/cvlab-work/ITK
 make "$@"

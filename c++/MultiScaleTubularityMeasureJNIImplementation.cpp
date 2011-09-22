@@ -249,15 +249,23 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 	std::cout<< "path update" << std::endl;
 
 	pathFilter->Update();
-	
+
+	typedef typename OutputScaleSpaceImageType::SpacingType ScaleSpaceSpacingType;
+	typedef typename OutputScaleSpaceImageType::PointType  ScaleSpaceOriginType;
+
+	ScaleSpaceSpacingType ss_spacing = tubularityScoreImage->GetSpacing();
+	ScaleSpaceOriginType  ss_origin = tubularityScoreImage->GetOrigin();
+
+
 	for(unsigned int k = 0; k < pathFilter->GetPath(0)->GetVertexList()->Size(); k++)
 	{
 		VertexType vertex = pathFilter->GetPath(0)->GetVertexList()->GetElement(k);
 				
-		for (unsigned int i = 0; i < Dimension; i++) 
-			Outputpath.push_back(vertex[i]*spacing[i]);
+		for (unsigned int i = 0; i < Dimension+1; i++) 
+			Outputpath.push_back(vertex[i]*ss_spacing[i]+ss_origin[i]);
 
-		Outputpath.push_back(vertex[Dimension]*spacing[Dimension] + 1);		
+		//Outputpath.push_back(vertex[Dimension]*spacing[Dimension] + 1.0);
+
 	}
 
 	pathFilter->WritePathsToFile("testPathnew");
@@ -277,6 +285,8 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_GetPath
 	jfloat * jbOutS = env->GetFloatArrayElements(jba,&isCopy);
 	float* outputpath = (float*) jbOutS;
 	
+
+	//vertex[SetDimension-1] * spacing[SetDimension-1] + origin[SetDimension-1]
 	for(int i=0;i<Outputpath.size();i++)
 		outputpath[i] = Outputpath[i];
 
