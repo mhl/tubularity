@@ -135,7 +135,8 @@ INCLUDE_ITK=-ftemplate-depth-50 -Wall -Wno-deprecated -msse2 -I$(ITK) \
 	-I$(ITK)/Utilities/gdcm/src \
 	-IitkCVLab
 
-all : plugins/TubularityMeasure_Plugin.jar
+all : plugins/TubularityMeasure_Plugin.jar \
+	plugins/MultiScaleTubularityMeasure_Plugin.jar
 
 plugins/%_Plugin.jar : FijiITKInterface/%.class \
 			FijiITKInterface/%_Plugin.class \
