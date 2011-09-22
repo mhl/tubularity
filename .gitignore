@@ -2,3 +2,4 @@
 *.class
 /plugins/*.jar
 /build
+/ij.jar
