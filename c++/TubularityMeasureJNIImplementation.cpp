@@ -284,3 +284,16 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_TubularityMeasure_OrientedFlux(JNIE
 }
 
 
+/*
+ * Class:     FijiITKInterface_MultiScaleTubularityMeasure
+ * Method:    getPathResult
+ * Signature: (Ljava/lang/String;[F[FLFijiITKInterface/PathResult;)V
+ */
+JNIEXPORT void JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_getPathResult
+ (JNIEnv *, jobject, jstring, jfloatArray, jfloatArray, jobject) {
+
+    // TODO: fill in the code here
+
+
+
+}
