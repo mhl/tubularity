@@ -135,6 +135,22 @@ INCLUDE_ITK=-ftemplate-depth-50 -Wall -Wno-deprecated -msse2 -I$(ITK) \
 
 all : plugins/TubularityMeasure_Plugin.jar
 
+plugins/%_Plugin.jar : FijiITKInterface/%.class \
+			FijiITKInterface/%_Plugin.class \
+			%.config \
+			fiji/jni/LibraryLoader.class \
+			build/$(ARCH)/lib%.$(LIBRARY_EXTENSION)
+	mkdir -p plugins
+	cp $*.config plugins.config
+	jar cvf plugins/$*_Plugin.jar \
+		FijiITKInterface/$*.class \
+		FijiITKInterface/$*_Plugin.class \
+		plugins.config \
+		fiji/jni/LibraryLoader.class \
+		-C build \
+		$(ARCH)/lib$*.$(LIBRARY_EXTENSION)
+	rm plugins.config
+
 test :
 	java -jar ij.jar -eval 'run("Bridge (174K)"); run("Tubularity Measure Plugin");'
 
@@ -146,16 +162,12 @@ clean :
 superclean: clean
 	rm -rf ij.jar
 
-plugins/TubularityMeasure_Plugin.jar : FijiITKInterface/TubularityMeasure.class FijiITKInterface/TubularityMeasure_Plugin.class plugins.config fiji/jni/LibraryLoader.class build/$(ARCH)/libTubularityMeasure.$(LIBRARY_EXTENSION)
-	mkdir -p plugins
-	jar cvf plugins/TubularityMeasure_Plugin.jar FijiITKInterface/TubularityMeasure.class FijiITKInterface/TubularityMeasure_Plugin.class plugins.config fiji/jni/LibraryLoader.class -C build $(ARCH)/libTubularityMeasure.$(LIBRARY_EXTENSION)
-
-build/$(ARCH)/libTubularityMeasure.$(LIBRARY_EXTENSION) : FijiITKInterface/FijiITKInterface_TubularityMeasure.h c++/TubularityJNIImplementation.cpp
+build/$(ARCH)/lib%.$(LIBRARY_EXTENSION) : FijiITKInterface/FijiITKInterface_%.h c++/%JNIImplementation.cpp
 	mkdir -p build/$(ARCH)/
-	g++ -Wall -O3 -o $@ -I../c++ c++/TubularityJNIImplementation.cpp -fPIC -shared  -I$(JDK_HOME)/include/ -I$(JDK_HOME)/include/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/  $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK)
+	g++ -Wall -O3 -o $@ -I../c++ c++/$*JNIImplementation.cpp -fPIC -shared  -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/  $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK)
 
-FijiITKInterface/FijiITKInterface_TubularityMeasure.h : FijiITKInterface/TubularityMeasure.class
-	$(FIJI_LAUNCHER) --javah --class-path=.:$(JDK_HOME)/lib/tools.jar -jni -d FijiITKInterface FijiITKInterface.TubularityMeasure
+FijiITKInterface/FijiITKInterface_%.h : FijiITKInterface/%.class
+	$(FIJI_LAUNCHER) --javah --class-path=. -jni -d FijiITKInterface FijiITKInterface.$*
 
-%.class : %.java ij.jar
+%.class : %.java
 	$(FIJI_LAUNCHER) --javac --class-path=. $<
