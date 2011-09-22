@@ -3,10 +3,6 @@
 #include <iostream>
 
 #include "FijiITKInterface_MultiScaleTubularityMeasure.h"
-
-#include "itkHessianMainPrincipleCurvatureObjectnessImageFilter.h"
-//#include "itkHessianToObjectnessMeasureImageFilter.h"
-#include "itkHessian3DToVesselnessMeasureImageFilter.h"
 #include "itkMultiScaleHessianBasedMeasureImageFilter2.h"
 #include "itkMinimumMaximumImageCalculator.h"
 #include "itkShiftScaleImageFilter.h"
@@ -30,7 +26,6 @@ break; \
 #define MultiScaleEnhancementFilterSwitch3D(HessianFilterTypeValue, BaseFilterObjectPtr, Call)  \
 switch( HessianFilterTypeValue ) \
 { \
-SwitchCase(Lindeberg, LindebergMultiScaleEnhancementFilterType, BaseFilterObjectPtr, Call ) \
 SwitchCase(OrientedFluxTrace, OrientedFluxTraceMultiScaleEnhancementFilterType, BaseFilterObjectPtr, Call ) \
 SwitchCase(OrientedFluxCrossSectionCurvature, OrientedFluxMainCurvatureMultiScaleEnhancementFilterType, BaseFilterObjectPtr, Call ) \
 }\
@@ -38,7 +33,6 @@ SwitchCase(OrientedFluxCrossSectionCurvature, OrientedFluxMainCurvatureMultiScal
 #define MultiScaleEnhancementFilterSwitchND(HessianFilterTypeValue, BaseFilterObjectPtr, Call)  \
 switch( HessianFilterTypeValue ) \
 { \
-SwitchCase(Lindeberg, LindebergMultiScaleEnhancementFilterType, BaseFilterObjectPtr, Call ) \
 SwitchCase(OrientedFluxTrace, OrientedFluxTraceMultiScaleEnhancementFilterType, BaseFilterObjectPtr, Call ) \
 SwitchCase(OrientedFluxCrossSectionCurvature, OrientedFluxMainCurvatureMultiScaleEnhancementFilterType, BaseFilterObjectPtr, Call ) \
 }\
@@ -66,12 +60,10 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 	// Default hessian filter type
 	typedef enum
 	{
-		Lindeberg = 0,
-		Frangi = 1,
-		OrientedFluxTrace = 2,
+	        OrientedFluxTrace = 2,
 		OrientedFluxCrossSectionCurvature = 3
 	}HessianFilterTypeEnum;
-	HessianFilterTypeEnum HessianFilterTypeValue = Lindeberg;
+	HessianFilterTypeEnum HessianFilterTypeValue;
 	
 	
 	// Typedefs
@@ -101,18 +93,12 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 	
 	// Declare the type of enhancement filter
 	typedef itk::ProcessObject ObjectnessBaseFilterType;
-	typedef itk::HessianMainPrincipleCurvatureObjectnessImageFilter <HessianImageType,OutputImageType> LindebergObjectnessFilterType;
-	//typedef itk::HessianToObjectnessMeasureImageFilter <HessianImageType,OutputImageType> FrangiObjectnessFilterType;
 	typedef itk::HessianToOrientedFluxTraceMeasureFilter <HessianImageType,OutputImageType> HessianToOrientedFluxTraceObjectnessFilterType;	
 	typedef itk::HessianToOrientedFluxMainCurvatureMeasureFilter <HessianImageType,OutputImageType> HessianToOrientedFluxMainCurvatureObjectnessFilterType;	
 	
 	// Declare the type of multiscale enhancement filter
 	typedef itk::ProcessObject MultiScaleEnhancementBaseFilterType;
-	typedef itk::MultiScaleHessianBasedMeasureImageFilter2< InputImageType, 
-															HessianImageType, 
-															ScalesImageType,
-															LindebergObjectnessFilterType, 
-															OutputImageType > LindebergMultiScaleEnhancementFilterType;
+	
 	typedef itk::MultiScaleHessianBasedMeasureImageFilter2< InputImageType, 
 															HessianImageType, 
 															ScalesImageType,
@@ -139,23 +125,14 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 		minSpacing = vnl_math_min(minSpacing, spacing[i]);
 	}
 	// Parse the input arguments.
-	unsigned int argumentOffset = 1;
 
 	double fixedSigmaForHessianComputation = minSpacing;//TODO : use the minimal ImageSpacing
 	
 	bool brightObject = true;
-
-	//true	
-	bool normalizeTubularityImageBtw0And1 = true;
 	// for first try, fix to 3 (cross section eigen trace)	
 	HessianFilterTypeValue =  OrientedFluxCrossSectionCurvature;//OrientedFluxCrossSectionCurvature;
 	bool useAFixedSigmaForComputingHessianImage = true;
-	bool scaleObjectnessMeasure = false;
-	unsigned int objectDimension = 1; // default values just to avoid compiler 
-
-
-	bool generateScaleImage = false;
-	bool generateHessianMatrixImage = false;
+ 	bool generateHessianMatrixImage = false;
 	bool generateScaleSpaceTubularityScoreImage = true;
 
 	
@@ -202,10 +179,9 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 										
 		// Writing the output image.
 		typename OutputScaleSpaceImageType::Pointer tubularityScoreImage;
-		if( normalizeTubularityImageBtw0And1 ){
+		
 			
-			typename MinMaxCalculatorForScaleSpaceImageType::Pointer minMaxCalc = MinMaxCalculatorForScaleSpaceImageType::New();
-			std::cout << "coucoucccccc" << FilterObjectPtr->GetNPlus1DImageOutput()->GetBufferedRegion() << std::endl;
+		  typename MinMaxCalculatorForScaleSpaceImageType::Pointer minMaxCalc = MinMaxCalculatorForScaleSpaceImageType::New();
 			minMaxCalc->SetImage( (FilterObjectPtr->GetNPlus1DImageOutput()) );
 			minMaxCalc->Compute();
 																				
@@ -215,10 +191,8 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 			shiftScaleFilter->SetScale( 1 / (minMaxCalc->GetMaximum() - minMaxCalc->GetMinimum()) );
 			shiftScaleFilter->Update();
 			tubularityScoreImage = shiftScaleFilter->GetOutput();
-		}
-		else{
-			//tubularityScoreImage = FilterObjectPtr->ShiftScaleFilterForScaleSpaceImageType();
-		}
+		
+		
 
 
 	////code test///
@@ -275,7 +249,7 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 																			
 	)		// end MultiScaleEnhancementFilterSwitchND
 	std::cout << "Exiting with success." << std::endl;
-	
+	return EXIT_SUCCESS;
 	
 }
 
@@ -287,7 +261,7 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_GetPath
 	
 
 	//vertex[SetDimension-1] * spacing[SetDimension-1] + origin[SetDimension-1]
-	for(int i=0;i<Outputpath.size();i++)
+	for(unsigned int i=0;i<Outputpath.size();i++)
 		outputpath[i] = Outputpath[i];
 
 	 env->ReleaseFloatArrayElements(jba, jbOutS,0);
@@ -297,7 +271,6 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_GetPath
 
 JNIEXPORT jint JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_FindPath(JNIEnv * env, jobject ignored, jfloatArray jba, jintArray point1, jintArray point2, jfloatArray Path, jint width, jint height, jint NSlice, jint NScale, jdouble widthpix, jdouble heightpix, jdouble depthpix){
 	
-	int ind=0;
 	double spacing[3], origin[3];
 	// compute the min path	
 	typedef float	      TubularityScorePixelType;
