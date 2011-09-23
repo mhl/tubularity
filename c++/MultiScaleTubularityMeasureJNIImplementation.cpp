@@ -230,16 +230,13 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 	ScaleSpaceSpacingType ss_spacing = tubularityScoreImage->GetSpacing();
 	ScaleSpaceOriginType  ss_origin = tubularityScoreImage->GetOrigin();
 
-
 	for(unsigned int k = 0; k < pathFilter->GetPath(0)->GetVertexList()->Size(); k++)
-	{
-		VertexType vertex = pathFilter->GetPath(0)->GetVertexList()->GetElement(k);
-				
-		for (unsigned int i = 0; i < Dimension+1; i++) 
-			Outputpath.push_back(vertex[i]*ss_spacing[i]+ss_origin[i]);
-
-		//Outputpath.push_back(vertex[Dimension]*spacing[Dimension] + 1.0);
-
+	{      
+	  VertexType vertex = pathFilter->GetPath(0)->GetVertexList()->GetElement(k);	     
+	  for (unsigned int i = 0; i < Dimension+1; i++)
+	    {	     
+	      Outputpath.push_back(vertex[i]*ss_spacing[i]+ss_origin[i]);
+	    }
 	}
 
 	pathFilter->WritePathsToFile("testPathnew");
