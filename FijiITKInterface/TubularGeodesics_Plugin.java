@@ -31,9 +31,9 @@ import ij.measure.Calibration;
 
 import ij3d.*;
 
-public class MultiScaleTubularityMeasure_Plugin implements MouseListener, MouseMotionListener, PlugIn {
+public class TubularGeodesics_Plugin implements MouseListener, MouseMotionListener, PlugIn {
 
-    MultiScaleTubularityMeasure ti;
+    TubularGeodesics ti;
     final static boolean MULTICOLORED = true;
     JPanel mainPane;
     ImagePlus imagePlus;
@@ -54,8 +54,8 @@ public class MultiScaleTubularityMeasure_Plugin implements MouseListener, MouseM
 
 
 
-    public MultiScaleTubularityMeasure_Plugin() {
-        ti = new MultiScaleTubularityMeasure();
+    public TubularGeodesics_Plugin() {
+        ti = new TubularGeodesics();
     }
 
     public void run( String ignored ) {

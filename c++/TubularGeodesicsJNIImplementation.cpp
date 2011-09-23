@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-#include "FijiITKInterface_MultiScaleTubularityMeasure.h"
+#include "FijiITKInterface_TubularGeodesics.h"
 #include "itkImage.h"
 #include "itkNumericTraits.h"
 #include "itkImageFileReader.h"
@@ -194,11 +194,11 @@ void setErrorMessage(JNIEnv * env,
 }
 
 /*
- * Class:     FijiITKInterface_MultiScaleTubularityMeasure
+ * Class:     FijiITKInterface_TubularGeodesics
  * Method:    getPathResult
  * Signature: (Ljava/lang/String;[F[FLFijiITKInterface/PathResult;)V
  */
-JNIEXPORT void JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_getPathResult
+JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_getPathResult
  (JNIEnv * env,
   jobject ignored,
   jstring jTubularityFilename,

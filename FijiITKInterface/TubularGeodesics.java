@@ -3,7 +3,7 @@ package FijiITKInterface;
 import fiji.jni.LibraryLoader;
 import tracing.PathResult;
 
-public class MultiScaleTubularityMeasure extends LibraryLoader {
+public class TubularGeodesics extends LibraryLoader {
 
     public native int GetPath(float [] jba);
     public native int FindPath(float [] Input, int [] pt1, int [] pt2 , float [] Path, int w, int h, int slices,int scales,  double pixw, double pixh, double pixd);
