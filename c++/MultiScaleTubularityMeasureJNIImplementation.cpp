@@ -105,11 +105,17 @@ Execute( float* pt1, float* pt2)
   startSubRegion[Dimension] = region.GetIndex()[Dimension];
   sizeSubRegion[Dimension]  = region.GetSize()[Dimension];
   // extract sub region and pad it in the spatial domain
-  int subRegionPad    = 2;
+  //TODO: This shouldn't be hardcoded
+  int subRegionPad    = 10; 
+  //TODO: This shouldn't be hardcoded
+  // Anyways, we'll get rid of it soon ;-)
   for(unsigned int i = 0; i < Dimension; i++)
     {
-      startSubRegion[i] = vnl_math_max(vnl_math_min( startPoint[i], endPoint[i] ) - subRegionPad, region.GetIndex()[i] );
-      sizeSubRegion[i]  = vnl_math_min(int(vnl_math_max( startPoint[i], endPoint[i] ) - startSubRegion[i] + subRegionPad+1), int(region.GetSize()[i] - startSubRegion[i] + 1) );//TODO
+      IndexValueType minIndex = vnl_math_min( startPoint[i], endPoint[i] );
+      IndexValueType maxIndex = vnl_math_max( startPoint[i], endPoint[i] );
+      startSubRegion[i] = vnl_math_max( minIndex - subRegionPad, region.GetIndex()[i] );
+      IndexValueType maxSubRegionIndex = vnl_math_min( int(maxIndex + subRegionPad), int(region.GetIndex()[i] + region.GetSize()[i] -1) );
+      sizeSubRegion[i]  = maxSubRegionIndex - startSubRegion[i] + 1;
     }
   subRegionToProcess.SetIndex( startSubRegion );
   subRegionToProcess.SetSize( sizeSubRegion );
