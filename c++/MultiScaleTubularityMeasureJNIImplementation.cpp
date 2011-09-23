@@ -262,7 +262,9 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_getPath
 	reader->SetFileName( filename );
 	try
 	  {
+		  std::cout << "before reading the file" << std::endl;
 	    reader->Update();
+		  std::cout << "after reading the file" << std::endl;
 	  }
 	catch(itk::ExceptionObject &e)   
 	  {      
@@ -280,7 +282,9 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_getPath
      * One just needs to call the Execute method and convert the output
      */
 
+    std::cout << "before Execute" << std::endl;
     Execute( pt1, pt2 );
+    std::cout << "after Execute" << std::endl;
 
     long nb_points  = Outputpath.size() / 4;
     float * pathPoints = new float[nb_points*4];
