@@ -250,9 +250,7 @@ namespace itk
 		seed->Initialize();
 		seed->InsertElement( 0, node );
 		fastMarching->SetTrialPoints( seed );
-		std::cout << "seed " << seed << std::endl;
 		fastMarching->Update();
-		std::cout << "after Fast Marching Update" << std::endl;
 		// Compute the minimal paths and their distances.		
 		std::vector<PathPointer> outputPathList;
 		std::vector<double> outputDistanceList;
@@ -268,7 +266,6 @@ namespace itk
 		{
 			this->ProcessObject::SetNthOutput( i, outputPathList[i].GetPointer() );
 			m_EndPointDistanceList[i] = outputDistanceList[i];
-			std::cout << "m_EndPointDistanceList[i] " << m_EndPointDistanceList[i] << std::endl;
 		}
 		
 	}
@@ -293,13 +290,11 @@ namespace itk
 		charPathFilter->SetStep( m_DescentStepFactor );
 		charPathFilter->SetTerminationDistanceFactor( m_TerminationDistanceFactor );
 		charPathFilter->SetStartPoint( m_StartPoint );
-		std::cout << "m_StartPoint " << m_StartPoint << std::endl;
 		charPathFilter->SetNbMaxIter( m_NbMaxIter );
 		outputDistanceList.resize( numberOfOutputs );
 		for (unsigned int i = 0; i < numberOfOutputs; i++) 
 		{
 			charPathFilter->AddPathEndPoint( m_EndPointList[i] );
-			std::cout << "m_EndPointList[i] " << m_EndPointList[i] << std::endl;
 			outputDistanceList[i] = distImage->GetPixel( m_EndPointList[i] );
 		}
 		charPathFilter->Update();
@@ -311,7 +306,6 @@ namespace itk
 			
 			// Reverse the path so that it is from the source vertex to the target one.
 			path->Reverse();
-			std::cout << "path->GetVertexList()->Size() : " << path->GetVertexList()->Size() << std::endl;
 			outputPathList[n] = path;
 		}
 	}
