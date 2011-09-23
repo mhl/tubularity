@@ -105,7 +105,7 @@ Execute( float* pt1, float* pt2)
   startSubRegion[Dimension] = region.GetIndex()[Dimension];
   sizeSubRegion[Dimension]  = region.GetSize()[Dimension];
   // extract sub region and pad it in the spatial domain
-  int subRegionPad    = 20;
+  int subRegionPad    = 2;
   for(unsigned int i = 0; i < Dimension; i++)
     {
       startSubRegion[i] = vnl_math_max(vnl_math_min( startPoint[i], endPoint[i] ) - subRegionPad, region.GetIndex()[i] );
