@@ -174,7 +174,7 @@ build/$(ARCH)/lib%.$(LIBRARY_EXTENSION) : FijiITKInterface/FijiITKInterface_%.h 
 	g++ -Wall -O3 -o $@ -I../c++ c++/$*JNIImplementation.cpp -fPIC -shared  -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/  $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK)
 
 FijiITKInterface/FijiITKInterface_%.h : FijiITKInterface/%.class
-	$(FIJI_LAUNCHER) --javah --class-path=. -jni -d FijiITKInterface FijiITKInterface.$*
+	$(FIJI_LAUNCHER) --javah --class-path=.:$(JDK_HOME)/lib/tools.jar -jni -d FijiITKInterface FijiITKInterface.$*
 
 %.class : %.java
 	$(FIJI_LAUNCHER) --javac --class-path=. $<
