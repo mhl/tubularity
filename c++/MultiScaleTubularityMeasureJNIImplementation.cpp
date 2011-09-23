@@ -3,498 +3,139 @@
 #include <iostream>
 
 #include "FijiITKInterface_MultiScaleTubularityMeasure.h"
-#include "itkMultiScaleHessianBasedMeasureImageFilter2.h"
-#include "itkMinimumMaximumImageCalculator.h"
-#include "itkShiftScaleImageFilter.h"
+#include "itkImage.h"
+#include "itkNumericTraits.h"
+#include "itkImageFileReader.h"
 #include "itkTubularMetricToPathFilter3.h"
-#include <itkImageFileWriter.h>
-#include "itkLogImageFilter.h"
-#include "itkMultiplyByConstantImageFilter.h"
+#include "vnl/vnl_math.h"
 
-#include "itkHessianToOrientedFluxTraceMeasureImageFilter.h"
-#include "itkHessianToOrientedFluxMainCurvatureMeasureImageFilter.h"
 
-#define SwitchCase(CaseValue, DerivedFilterType, BaseFilterObjectPtr, Call ) \
-case CaseValue: \
-{ \
-typedef DerivedFilterType FilterObjectType; \
-typename FilterObjectType::Pointer FilterObjectPtr = static_cast<FilterObjectType*>(BaseFilterObjectPtr.GetPointer()); \
-Call; \
-break; \
-} \
+// Consts and typedefs
+const unsigned int Dimension = 3;
+const unsigned int SSDimension = Dimension+1;
+typedef float	                                                     TubularityScorePixelType;
+typedef itk::Image<TubularityScorePixelType,4>	                     TubularityScoreImageType;
+typedef TubularityScoreImageType::RegionType                         RegionType;
+typedef TubularityScoreImageType::SizeType                           SizeType;
 
-#define MultiScaleEnhancementFilterSwitch3D(HessianFilterTypeValue, BaseFilterObjectPtr, Call)  \
-switch( HessianFilterTypeValue ) \
-{ \
-SwitchCase(OrientedFluxTrace, OrientedFluxTraceMultiScaleEnhancementFilterType, BaseFilterObjectPtr, Call ) \
-SwitchCase(OrientedFluxCrossSectionCurvature, OrientedFluxMainCurvatureMultiScaleEnhancementFilterType, BaseFilterObjectPtr, Call ) \
-}\
+typedef TubularityScoreImageType::IndexValueType                     IndexValueType;
+typedef TubularityScoreImageType::IndexType                          IndexType;
+typedef TubularityScoreImageType::PointType                          OriginType;
+typedef TubularityScoreImageType::SpacingType                        SpacingType;
 
-#define MultiScaleEnhancementFilterSwitchND(HessianFilterTypeValue, BaseFilterObjectPtr, Call)  \
-switch( HessianFilterTypeValue ) \
-{ \
-SwitchCase(OrientedFluxTrace, OrientedFluxTraceMultiScaleEnhancementFilterType, BaseFilterObjectPtr, Call ) \
-SwitchCase(OrientedFluxCrossSectionCurvature, OrientedFluxMainCurvatureMultiScaleEnhancementFilterType, BaseFilterObjectPtr, Call ) \
-}\
-\
+typedef itk::TubularMetricToPathFilter3< TubularityScoreImageType >  PathFilterType;
+typedef PathFilterType::VertexType			             VertexType;
 
-#define GRAY8 0
-#define GRAY16 2
-#define GRAY32 4
+typedef itk::ImageFileReader< TubularityScoreImageType >             ImageReaderType;
 
-using std::cout;
-using std::cerr;
-using std::endl;
-
-const unsigned int maxDimension = 3;
+// Global variables
+TubularityScoreImageType::Pointer tubularityScore;
+bool isTubularityScoreLoaded = false;
 std::vector< float > Outputpath;
 
 
-// Main code goes here! 
-template<class TInputPixel, unsigned int VDimension> 
-typename itk::Image<float,VDimension+1>::Pointer
-Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double sigmaMin, double sigmaMax, unsigned int numberOfScales, float* pt1, float* pt2)
-{	
-	// Define the dimension of the images
-	const unsigned int Dimension = VDimension;
-	
-	// Default hessian filter type
-	typedef enum
+// For a Given Location, Get the Optimal scale, 
+/**
+ * ITK related methods: 
+ * 
+ */
+void GetOptimalScale(IndexType *point)
+{
+  TubularityScorePixelType bestScore    =  itk::NumericTraits< TubularityScorePixelType >::min();
+  IndexType scaleSpaceSourceVertexIndex = *point;
+  RegionType region                     = tubularityScore->GetBufferedRegion();
+  IndexValueType noOfScales             = region.GetSize()[Dimension];	       
+  IndexValueType scaleStartIndex        = region.GetIndex()[Dimension];	       
+  IndexValueType scaleEndIndex          = scaleStartIndex + noOfScales - 1; 
+  IndexValueType bestScaleIndex         = 0;
+  for(IndexValueType sourceScaleIndex   = scaleStartIndex;
+     sourceScaleIndex  <= scaleEndIndex;       			      
+     sourceScaleIndex++)
+    {
+      scaleSpaceSourceVertexIndex[Dimension] = sourceScaleIndex;
+      if( bestScore < tubularityScore->GetPixel( scaleSpaceSourceVertexIndex ) )
 	{
-	        OrientedFluxTrace = 2,
-		OrientedFluxCrossSectionCurvature = 3
-	}HessianFilterTypeEnum;
-	HessianFilterTypeEnum HessianFilterTypeValue;
-	
-	
-	// Typedefs
-	typedef TInputPixel										InputPixelType;
-	typedef itk::Image<InputPixelType,Dimension>							InputImageType;
-	typedef typename InputImageType::SpacingType							SpacingType;
-	
-	
-	typedef float											OutputPixelType;
-	typedef itk::Image<OutputPixelType,Dimension>							OutputImageType;
-	typedef itk::Image<OutputPixelType,Dimension+1>							OutputScaleSpaceImageType;
-	
-	
-	typedef float											HessianPixelScalarType;
-	typedef itk::SymmetricSecondRankTensor< HessianPixelScalarType, Dimension > 			HessianPixelType;
-	typedef itk::Image< HessianPixelType, Dimension >						HessianImageType;
-	
-	typedef float											ScalesPixelType;
-	typedef itk::Image<ScalesPixelType, Dimension>							ScalesImageType;
-
-
-	typedef itk::ShiftScaleImageFilter<OutputImageType, OutputImageType>				ShiftScaleFilterType;
-	typedef itk::MinimumMaximumImageCalculator<OutputImageType>					MinMaxCalculatorType;
-	typedef itk::ShiftScaleImageFilter<OutputScaleSpaceImageType, OutputScaleSpaceImageType>	ShiftScaleFilterForScaleSpaceImageType;
-	typedef itk::MinimumMaximumImageCalculator<OutputScaleSpaceImageType>				MinMaxCalculatorForScaleSpaceImageType;
-	
-	
-	// Declare the type of enhancement filter
-	typedef itk::ProcessObject ObjectnessBaseFilterType;
-	typedef itk::HessianToOrientedFluxTraceMeasureFilter <HessianImageType,OutputImageType> HessianToOrientedFluxTraceObjectnessFilterType;	
-	typedef itk::HessianToOrientedFluxMainCurvatureMeasureFilter <HessianImageType,OutputImageType> HessianToOrientedFluxMainCurvatureObjectnessFilterType;	
-	
-	// Declare the type of multiscale enhancement filter
-	typedef itk::ProcessObject MultiScaleEnhancementBaseFilterType;
-	
-	typedef itk::MultiScaleHessianBasedMeasureImageFilter2< InputImageType, 
-															HessianImageType, 
-															ScalesImageType,
-															HessianToOrientedFluxTraceObjectnessFilterType, 
-															OutputImageType > OrientedFluxTraceMultiScaleEnhancementFilterType;
-	typedef itk::MultiScaleHessianBasedMeasureImageFilter2< InputImageType, 
-															HessianImageType, 
-															ScalesImageType,
-															HessianToOrientedFluxMainCurvatureObjectnessFilterType, 
-															OutputImageType > OrientedFluxMainCurvatureMultiScaleEnhancementFilterType;	
-
-
-	typedef typename OutputScaleSpaceImageType::IndexType IndexType;
-	typedef itk::TubularMetricToPathFilter3< OutputScaleSpaceImageType >  PathFilterType;
-	typedef typename PathFilterType::VertexType										VertexType;
-	
-
-	SpacingType spacing = Input_Image->GetSpacing();
-	double maxSpacing = spacing[0];
-	double minSpacing = spacing[0];
-	for(unsigned int i = 1; i < Dimension; i++)
-	{
-		maxSpacing = vnl_math_max(maxSpacing, spacing[i]);
-		minSpacing = vnl_math_min(minSpacing, spacing[i]);
+	  bestScore = tubularityScore->GetPixel( scaleSpaceSourceVertexIndex );				       
+	  bestScaleIndex = sourceScaleIndex;
 	}
-	// Parse the input arguments.
-
-	double fixedSigmaForHessianComputation = minSpacing;//TODO : use the minimal ImageSpacing
-	
-	bool brightObject = true;
-	// for first try, fix to 3 (cross section eigen trace)	
-	HessianFilterTypeValue =  OrientedFluxCrossSectionCurvature;//OrientedFluxCrossSectionCurvature;
-	bool useAFixedSigmaForComputingHessianImage = true;
- 	bool generateHessianMatrixImage = false;
-	bool generateScaleSpaceTubularityScoreImage = true;
-
-	
-       	// typenames needed
-	ObjectnessBaseFilterType::Pointer objectnessFilter;
-	MultiScaleEnhancementBaseFilterType::Pointer multiScaleEnhancementFilter;
-	typename HessianToOrientedFluxMainCurvatureObjectnessFilterType::Pointer orientedFluxMainCurvatureObjectnessFilter = HessianToOrientedFluxMainCurvatureObjectnessFilterType::New();
-	orientedFluxMainCurvatureObjectnessFilter->SetBrightObject( brightObject );
-	objectnessFilter = orientedFluxMainCurvatureObjectnessFilter;
-	
-	typename OrientedFluxMainCurvatureMultiScaleEnhancementFilterType::Pointer orientedFluxMainCurvatureMultiScaleEnhancementFilter = OrientedFluxMainCurvatureMultiScaleEnhancementFilterType::New();
-	orientedFluxMainCurvatureMultiScaleEnhancementFilter->SetHessianToMeasureFilter( orientedFluxMainCurvatureObjectnessFilter );
-	multiScaleEnhancementFilter = orientedFluxMainCurvatureMultiScaleEnhancementFilter;		
-
-	MultiScaleEnhancementFilterSwitchND(
-		HessianFilterTypeValue, multiScaleEnhancementFilter,FilterObjectPtr->SetInput(Input_Image);
-		FilterObjectPtr->SetSigmaMinimum( sigmaMin ); 
-		FilterObjectPtr->SetSigmaMaximum( sigmaMax );  
-		FilterObjectPtr->SetNumberOfSigmaSteps( numberOfScales );
-		FilterObjectPtr->SetUseAFixedSigmaForComputingHessianImage( useAFixedSigmaForComputingHessianImage );
-		FilterObjectPtr->SetGenerateNPlus1DHessianMeasureOutput(generateScaleSpaceTubularityScoreImage);
-
+    }
   
-	if( useAFixedSigmaForComputingHessianImage )
-	{
-		FilterObjectPtr->SetFixedSigmaForHessianImage( fixedSigmaForHessianComputation );
-	}
-		FilterObjectPtr->SetGenerateHessianOutput( generateHessianMatrixImage );//false
-		
-		std::cout << Input_Image.GetPointer() << std::endl;
-
-		std::cout << Input_Image->GetSpacing() << std::endl;
-		
-		try
-		{
-			
-			FilterObjectPtr->Update();
-			std::cout << "FilterObjectPtr->Update();" << std::endl;
-		}
-		catch (itk::ExceptionObject &e)
-		{
-			std::cerr << e << std::endl;
-		}
-										
-		// Writing the output image.
-		typename OutputScaleSpaceImageType::Pointer tubularityScoreImage;
-		
-			
-		  typename MinMaxCalculatorForScaleSpaceImageType::Pointer minMaxCalc = MinMaxCalculatorForScaleSpaceImageType::New();
-			minMaxCalc->SetImage( (FilterObjectPtr->GetNPlus1DImageOutput()) );
-			minMaxCalc->Compute();
-																				
-			typename ShiftScaleFilterForScaleSpaceImageType::Pointer shiftScaleFilter = ShiftScaleFilterForScaleSpaceImageType::New();
-			shiftScaleFilter->SetInput( FilterObjectPtr->GetNPlus1DImageOutput() );
-			shiftScaleFilter->SetShift( -minMaxCalc->GetMinimum() );
-			shiftScaleFilter->SetScale( 1 / (minMaxCalc->GetMaximum() - minMaxCalc->GetMinimum()) );
-			shiftScaleFilter->Update();
-			tubularityScoreImage = shiftScaleFilter->GetOutput();
-		
-		
-
-
-	////code test///
-	typename PathFilterType::Pointer pathFilter = PathFilterType::New();
-	typename PathFilterType::Pointer path = PathFilterType::New();
-
-	pathFilter->SetInput( tubularityScoreImage );
-
-	IndexType startPoint;
-	startPoint[0] = pt1[0];
-	startPoint[1] = pt1[1];
-	startPoint[2] = pt1[2];
-	startPoint[3] = 0;
-
-	std::cout << "startpoint " << startPoint[0] << ", " << startPoint[1] << ", " << startPoint[2] << std::endl;
-
-	IndexType endPoint;
-	endPoint[0] = pt2[0];
-	endPoint[1] = pt2[1];
-	endPoint[2] = pt2[2];
-	endPoint[3] = 0;
-
-	std::cout << "endpoint " << endPoint[0] << ", " << endPoint[1] << ", " << endPoint[2] << std::endl;
-
-	pathFilter->SetStartPoint(startPoint);
-	pathFilter->AddPathEndPoint(endPoint);
-	
-	std::cout<< "path update" << std::endl;
-
-	pathFilter->Update();
-
-	typedef typename OutputScaleSpaceImageType::SpacingType ScaleSpaceSpacingType;
-	typedef typename OutputScaleSpaceImageType::PointType  ScaleSpaceOriginType;
-
-	ScaleSpaceSpacingType ss_spacing = tubularityScoreImage->GetSpacing();
-	ScaleSpaceOriginType  ss_origin = tubularityScoreImage->GetOrigin();
-
-	for(unsigned int k = 0; k < pathFilter->GetPath(0)->GetVertexList()->Size(); k++)
-	{      
-	  VertexType vertex = pathFilter->GetPath(0)->GetVertexList()->GetElement(k);	     
-	  for (unsigned int i = 0; i < Dimension+1; i++)
-	    {	     
-	      Outputpath.push_back(vertex[i]*ss_spacing[i]+ss_origin[i]);
-	    }
-	}
-
-	pathFilter->WritePathsToFile("testPathnew");
-	////////////////
-
-	return tubularityScoreImage;
-																			
-	)		// end MultiScaleEnhancementFilterSwitchND
-	std::cout << "Exiting with success." << std::endl;
-	return EXIT_SUCCESS;
-	
+  (*point)[Dimension] = bestScaleIndex;  
 }
 
-JNIEXPORT jint JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_GetPath(JNIEnv * env, jobject ignored, jfloatArray jba)
+// Computes the minimal path between 2 provided points
+/**
+ * ITK related methods: 
+ * 
+ */
+void
+Execute( float* pt1, float* pt2)
 {
-	jboolean isCopy;
-	jfloat * jbOutS = env->GetFloatArrayElements(jba,&isCopy);
-	float* outputpath = (float*) jbOutS;
-	
 
-	//vertex[SetDimension-1] * spacing[SetDimension-1] + origin[SetDimension-1]
-	for(unsigned int i=0;i<Outputpath.size();i++)
-		outputpath[i] = Outputpath[i];
+  // Instantiate the path filter
+  PathFilterType::Pointer pathFilter = PathFilterType::New();
+  
+  // Set the tubularity score
+  pathFilter->SetInput( tubularityScore );
+  pathFilter->SetScaleSpeedFactor(10.0);// TODO: shouldn't be hardcoded
 
-	 env->ReleaseFloatArrayElements(jba, jbOutS,0);
-	
-	return Outputpath.size();
+  // Get the start and end points and give them to the path filter
+  IndexType startPoint;
+  IndexType endPoint;
+  for(unsigned int i = 0; i < Dimension; i++)
+    {
+      startPoint[i] = pt1[i];
+      endPoint[i]   = pt2[i];
+    }
+  // Get and assign to them the optimal scale
+  GetOptimalScale( &startPoint );
+  GetOptimalScale( &endPoint );
+  pathFilter->SetStartPoint( startPoint );
+  pathFilter->AddPathEndPoint( endPoint );
+  
+  // Get the sub region to be processed
+  // Warning a padding parameter is hardcoded
+  RegionType region = tubularityScore->GetBufferedRegion();
+ 
+  RegionType subRegionToProcess;
+  IndexType startSubRegion;
+  SizeType  sizeSubRegion;
+  
+  // No Padding or sub-selcetion on the scale dimension
+  startSubRegion[Dimension] = region.GetIndex()[Dimension];
+  sizeSubRegion[Dimension]  = region.GetSize()[Dimension];
+  // extract sub region and pad it in the spatial domain
+  int subRegionPad    = 20;
+  for(unsigned int i = 0; i < Dimension; i++)
+    {
+      startSubRegion[i] = vnl_math_max(vnl_math_min( startPoint[i], endPoint[i] ) - subRegionPad, region.GetIndex()[i] );
+      sizeSubRegion[i]  = vnl_math_min(int(vnl_math_max( startPoint[i], endPoint[i] ) - startSubRegion[i] + subRegionPad+1), int(region.GetSize()[i] - startSubRegion[i] + 1) );//TODO
+    }
+  subRegionToProcess.SetIndex( startSubRegion );
+  subRegionToProcess.SetSize( sizeSubRegion );
+
+  pathFilter->SetRegionToProcess(subRegionToProcess);
+
+  pathFilter->Update();
+  
+  SpacingType spacing = tubularityScore->GetSpacing();
+  OriginType  origin = tubularityScore->GetOrigin();
+
+  Outputpath.clear();
+  for(unsigned int k = 0; k < pathFilter->GetPath(0)->GetVertexList()->Size(); k++)
+    {
+       	VertexType vertex = pathFilter->GetPath(0)->GetVertexList()->GetElement(k);
+	for (unsigned int i = 0; i < Dimension+1; i++) 
+	  {
+	    Outputpath.push_back(vertex[i]*spacing[i]+origin[i]);
+	  }
+    }
 }
 
-JNIEXPORT jint JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_FindPath(JNIEnv * env, jobject ignored, jfloatArray jba, jintArray point1, jintArray point2, jfloatArray Path, jint width, jint height, jint NSlice, jint NScale, jdouble widthpix, jdouble heightpix, jdouble depthpix){
-	
-	double spacing[3], origin[3];
-	// compute the min path	
-	typedef float	      TubularityScorePixelType;
-	typedef itk::Image<TubularityScorePixelType,4>							TubularityScoreImageType;
-
-	typedef itk::TubularMetricToPathFilter3< TubularityScoreImageType >  PathFilterType;
-	PathFilterType::Pointer pathFilter = PathFilterType::New();
-
-
-	//Copies the data from the image buffer to the itkImage
-	jboolean isCopy;
-	jfloat * jbs   = env->GetFloatArrayElements(jba,&isCopy);
-	TubularityScorePixelType * InputImageData = (TubularityScorePixelType *) jbs;
-
-	jfloat * output   = env->GetFloatArrayElements(Path,&isCopy);
-	//float * OutputPath = (float *) output;
-
-	TubularityScoreImageType::Pointer itkImageP = TubularityScoreImageType::New();
-	TubularityScoreImageType::SizeType size;
-	size[0] = width;size[1] = height;size[2] = NSlice; size[3] = NScale;
-
-	TubularityScoreImageType::IndexType start;
-	start[0] = 0;start[1] = 0;start[2] = 0; start[3] = 0;
-	
-	TubularityScoreImageType::RegionType region;
-	region.SetSize( size );
-	region.SetIndex( start );
-	itkImageP->SetRegions( region);
-	itkImageP->Allocate();
-
-	spacing[0] = widthpix;spacing[1] = heightpix;spacing[2] = depthpix; //spacing[3] = 
-	itkImageP->SetSpacing( spacing );
-
-	origin[0] = 0;origin[1] = 0;origin[2] = 0; origin[3] = 1;
-	itkImageP->SetOrigin( origin );
-	
-
-	typedef itk::ImageRegionIterator< TubularityScoreImageType> IteratorType;
-	IteratorType it( itkImageP, region);
-
-	it.GoToBegin();
-	float * dataPointer = InputImageData;
-	while( ! it.IsAtEnd() )
-	{
-		it.Set( *dataPointer);
-		++it;
-		++dataPointer;
-	 }
-	
-	typedef itk::ImageFileWriter<TubularityScoreImageType> WriterType;
-	WriterType::Pointer writer = WriterType::New();
-	writer->SetInput(itkImageP);	
-	writer->SetFileName("ZopAvantLog.nrrd");	
-	writer->Update();
-
-	// Take the negative log-likelihood of the probability image.
-
-	typedef itk::LogImageFilter
-		<TubularityScoreImageType, TubularityScoreImageType> 		LogImageFilterType;
-	typedef itk::MultiplyByConstantImageFilter<TubularityScoreImageType,
-		double, TubularityScoreImageType>				MultiplyImageFilterType;
-
-	LogImageFilterType::Pointer logFilter = LogImageFilterType::New();
-	logFilter->SetInput( itkImageP );
-	MultiplyImageFilterType::Pointer multipFilter = MultiplyImageFilterType::New();
-	multipFilter->SetInput( logFilter->GetOutput() );
-	multipFilter->SetConstant( -1.0 );
-	multipFilter->Update();
-	itkImageP = multipFilter->GetOutput();
-	itkImageP->DisconnectPipeline();
-	//logFilter = 0;
-	//multipFilter = 0;
-	writer->SetInput(itkImageP);
-	writer->SetFileName("ZopApresLog.nrrd");	
-	writer->Update();
-
-
-	it.GoToBegin();
-	while( ! it.IsAtEnd() )
-	{
-		it.Set( 1 / it.Get() );
-		++it;
-	 }
-
-	writer->SetFileName("ZopApresInv.nrrd");	
-	writer->Update();
-
-
-	std::cout<< "path filter set input" << std::endl;
-
-	pathFilter->SetInput( itkImageP );
-	
-	typedef TubularityScoreImageType::IndexType IndexType;
-	typedef std::vector<IndexType> ListIndices;
-
-	jint* pt1   = env->GetIntArrayElements(point1,&isCopy);
-	jint* pt2   = env->GetIntArrayElements(point2,&isCopy);
-
-	IndexType startPoint;
-	startPoint[0] = pt1[0];
-	startPoint[1] = pt1[1];
-	startPoint[2] = pt1[2];
-	startPoint[3] = 1;
-
-	std::cout << "startpoint " << startPoint[0] << ", " << startPoint[1] << ", " << startPoint[2] << std::endl;
-
-	IndexType endPoint;
-	endPoint[0] = pt2[0];
-	endPoint[1] = pt2[1];
-	endPoint[2] = pt2[2];
-	endPoint[3] = 1;
-
-	std::cout << "endpoint " << endPoint[0] << ", " << endPoint[1] << ", " << endPoint[2] << std::endl;
-
-	pathFilter->SetStartPoint(startPoint);
-	pathFilter->AddPathEndPoint(endPoint);
-	//pathFilter->SetRegionToProcess(region);
-
-	std::cout<< "path update" << std::endl;
-
-	pathFilter->Update();
-	pathFilter->WritePathsToFile("testPath");
-
-	env->ReleaseFloatArrayElements(jba, jbs,0);
-	env->ReleaseFloatArrayElements(Path, output,0);
-
-	return 0;
-}
-
-
-JNIEXPORT jint JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_OrientedFlux(JNIEnv *env, jobject ignored, jbyteArray jba, jfloatArray jbOut, jint type, jint width, jint height, jint NSlice, jdouble widthpix, jdouble heightpix, jdouble depthpix, jdouble sigmaMin, jdouble sigmaMax, jint numberOfScales, jfloatArray pt1, jfloatArray pt2)
-{
-    jboolean isCopy;
-    jbyte * jbs   = env->GetByteArrayElements(jba,&isCopy);
-    jfloat * jbOutS = env->GetFloatArrayElements(jbOut,&isCopy);
-
-    jfloat * jSeed = env->GetFloatArrayElements(pt1,&isCopy);
-    jfloat * jEndPoint = env->GetFloatArrayElements(pt2,&isCopy);
-
-    float * Seed = (float*) jSeed;
-    float * EndPoint = (float*) jEndPoint;
-
-    if( ! jbs )
-        return -1;
-
-	double spacing[4], origin[4]; 
-
-	unsigned char * InputImageData = (unsigned char *) jbs;
-	//Allocates an itk image with the 2D buffered data
-   	typedef itk::Image<unsigned char, 3>  ImageType;
-	typedef itk::Image<float, 4> 	      OutputImageType;
-
-	ImageType::Pointer itkImageP = ImageType::New();
-
-	ImageType::SizeType size;
-	size[0] = width;size[1] = height;size[2] = NSlice;
-
-	ImageType::IndexType start;
-	start[0] = 0;start[1] = 0;start[2] = 0;
-	
-	ImageType::RegionType region;
-	region.SetSize( size );
-	region.SetIndex( start );
-	itkImageP->SetRegions( region);
-	itkImageP->Allocate();
-
-	spacing[0] = widthpix;spacing[1] = heightpix;spacing[2] = depthpix; spacing[3] = (sigmaMax-sigmaMin)/(numberOfScales-1) ;
-	itkImageP->SetSpacing( spacing );
-
-	origin[0] = 0;origin[1] = 0;origin[2] = 0; origin[3] = sigmaMin;
-	itkImageP->SetOrigin( origin );
-
-	//Copies the data from the image buffer to the itkImage
-	typedef itk::ImageRegionIterator< ImageType> IteratorType;
-	typedef itk::ImageRegionIterator< OutputImageType> OutputIteratorType;
-	IteratorType it( itkImageP, region);
-
-	it.GoToBegin();
-	unsigned char * dataPointer = InputImageData;
-	while( ! it.IsAtEnd() )
-	{
-		it.Set( *dataPointer);
-		++it;
-		++dataPointer;
-	 }
-
-	OutputImageType::Pointer outputImage = Execute<unsigned char, 3>(itkImageP, sigmaMin, sigmaMax, numberOfScales, Seed, EndPoint);
-
-	OutputImageType::RegionType Outputregion;
-	OutputImageType::SizeType Outputsize;
-	Outputsize[0] = width;Outputsize[1] = height;Outputsize[2] = NSlice; 
-	OutputImageType::IndexType Outputstart;
-	Outputstart[0] = 0;Outputstart[1] = 0;Outputstart[2] = 0;
-	Outputregion.SetSize( Outputsize );
-	Outputregion.SetIndex( Outputstart );
-
-	outputImage->SetRegions( Outputregion);
-	outputImage->Allocate();
-
-	spacing[0] = widthpix;spacing[1] = heightpix;spacing[2] = depthpix;
-	outputImage->SetSpacing( spacing );
-
-	origin[0] = 0;origin[1] = 0;origin[2] = 0;
-	outputImage->SetOrigin( origin );
-
-	float* outputImageData = (float*) jbOutS;
-	OutputIteratorType outit( outputImage, Outputregion);
-
-	outit.GoToBegin();
-	int length, ind = 0; double w = width; double h = height;
-
-	for(int k=0;k<numberOfScales;k++){
-		length =  w * h * NSlice;
-		for( int i = 0; i < length; ++i ) {
-	  		outputImageData[ind] = outit.Get();
-			ind++;
-	  		++outit;
-		}
-	}
-
-    env->ReleaseByteArrayElements(jba,jbs,0);
-    env->ReleaseFloatArrayElements(jbOut, jbOutS,0);
-
-    return 0;
-}
-
+/**
+ * JNI related methods: 
+ * 
+ */
 void setSuccess(JNIEnv * env,
                 bool succeeded,
                 jobject pathResultObject,
@@ -515,6 +156,10 @@ void setSuccess(JNIEnv * env,
                         jSucceeded);
 }
 
+/**
+ * JNI related methods: 
+ * 
+ */
 void setErrorMessage(JNIEnv * env,
                      const char * message,
                      jobject pathResultObject,
@@ -606,7 +251,47 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_getPath
         env->ReleaseFloatArrayElements(jPoint2, pt2, 0);
         return;
     }
+    /**
+     * Fethallah 
+     * First, check if the tubularity score image is loaded.
+     * If not, load it
+     */
+    if( !isTubularityScoreLoaded )
+      {
+	ImageReaderType::Pointer reader = ImageReaderType::New();
+	reader->SetFileName( filename );
+	try
+	  {
+	    reader->Update();
+	  }
+	catch(itk::ExceptionObject &e)   
+	  {      
+	    std::cerr << e << std::endl; 
+	  }
 
+	tubularityScore = reader->GetOutput();
+	tubularityScore->DisconnectPipeline();
+	isTubularityScoreLoaded = true;
+      }
+    /**
+     * Fethallah 
+     * At this point, the tubularity score is supposed to be loaded and
+     * the start and end points are given
+     * One just needs to call the Execute method and convert the output
+     */
+
+    Execute( pt1, pt2 );
+
+    long nb_points  = Outputpath.size() / 4;
+    float * pathPoints = new float[nb_points*4];
+    for(int i = 0; i < nb_points; ++i ) 
+      {
+	pathPoints[i  ] = Outputpath[4*i + 0];
+        pathPoints[i+1] = Outputpath[4*i + 1];
+        pathPoints[i+2] = Outputpath[4*i + 2];
+        pathPoints[i+3] = Outputpath[4*i + 3];
+      }
+    /*
     // ------------------------------------------------------------------------
     // FIXME: real code should go here, just example data:
 
@@ -618,11 +303,11 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_getPath
         pathPoints[i+1] = i;
         pathPoints[i+2] = i;
         pathPoints[i+3] = 6 + ((i % 8) - 4);
-    }
+    }*/
 
     // Now convert that to a Java float array:
 
-    jfloatArray jResultArray = env->NewFloatArray(points * 4);
+    jfloatArray jResultArray = env->NewFloatArray(nb_points * 4);
     if (!jResultArray) {
         std::cout << "Failed to allocate a new Java float array";
         env->ReleaseFloatArrayElements(jPoint1, pt1, 0);
@@ -633,7 +318,7 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_getPath
 
     env->SetFloatArrayRegion(jResultArray,
                              0,
-                             points * 4,
+                             nb_points * 4,
                              (jfloat *)pathPoints);
 
     {
