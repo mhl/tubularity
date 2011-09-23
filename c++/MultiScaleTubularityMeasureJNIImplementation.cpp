@@ -96,8 +96,7 @@ Execute( float* pt1, float* pt2)
   // Get the sub region to be processed
   // Warning a padding parameter is hardcoded
   RegionType region = tubularityScore->GetBufferedRegion();
-  std::cout << "input image region" << region << std::endl;
- 
+   
   RegionType subRegionToProcess;
   IndexType startSubRegion;
   SizeType  sizeSubRegion;
@@ -130,7 +129,6 @@ Execute( float* pt1, float* pt2)
 	  {
 	    Outputpath.push_back(vertex[i]*spacing[i]+origin[i]);
 	  }
-	std::cout << "in Execute: " << Outputpath[k*4] << std::endl;
     }
 }
 
@@ -264,9 +262,7 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_getPath
 	reader->SetFileName( filename );
 	try
 	  {
-		  std::cout << "before reading the file" << std::endl;
 	    reader->Update();
-		  std::cout << "after reading the file" << std::endl;
 	  }
 	catch(itk::ExceptionObject &e)   
 	  {      
@@ -283,20 +279,13 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_getPath
      * the start and end points are given
      * One just needs to call the Execute method and convert the output
      */
-
-    std::cout << "before Execute" << std::endl;
     Execute( pt1, pt2 );
-    std::cout << "after Execute" << std::endl;
 
     long nb_points  = Outputpath.size() / 4;
     float * pathPoints = new float[nb_points*4];
-    for(int i = 0; i < nb_points; ++i ) 
+    for(int i = 0; i < 4*nb_points; ++i ) 
       {
-	pathPoints[i*4  ] = Outputpath[4*i + 0];
-        pathPoints[i*4+1] = Outputpath[4*i + 1];
-        pathPoints[i*4+2] = Outputpath[4*i + 2];
-        pathPoints[i*4+3] = Outputpath[4*i + 3];
-	std::cout <<"pathPoints[i] : " << pathPoints[i] << std::endl;
+	pathPoints[i] = Outputpath[i];
       }
 
     // Now convert that to a Java float array:
