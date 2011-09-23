@@ -1,6 +1,10 @@
 .PHONY : all clean test
 .PRECIOUS : build/linux64/libMultiScaleTubularityMeasure.so \
-	build/linux64/libTubularityMeasure.so
+	build/linux64/libTubularityMeasure.so \
+	build/linux/libMultiScaleTubularityMeasure.so \
+	build/linux/libTubularityMeasure.so \
+	FijiITKInterface/FijiITKInterface_MultiScaleTubularityMeasure.h \
+	FijiITKInterface/FijiITKInterface_TubularityMeasure.h
 
 # Ensure the JDK_INCLUDE_PATH is defined:
 #

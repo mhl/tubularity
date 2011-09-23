@@ -283,4 +283,3 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_TubularityMeasure_OrientedFlux(JNIE
     return 0;
 }
 
-
