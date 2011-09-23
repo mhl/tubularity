@@ -96,6 +96,7 @@ Execute( float* pt1, float* pt2)
   // Get the sub region to be processed
   // Warning a padding parameter is hardcoded
   RegionType region = tubularityScore->GetBufferedRegion();
+  std::cout << "input image region" << region << std::endl;
  
   RegionType subRegionToProcess;
   IndexType startSubRegion;
@@ -115,7 +116,7 @@ Execute( float* pt1, float* pt2)
   subRegionToProcess.SetSize( sizeSubRegion );
 
   pathFilter->SetRegionToProcess(subRegionToProcess);
-
+  std::cout << "sub region to process" << subRegionToProcess << std::endl;
   pathFilter->Update();
   
   SpacingType spacing = tubularityScore->GetSpacing();
@@ -129,6 +130,7 @@ Execute( float* pt1, float* pt2)
 	  {
 	    Outputpath.push_back(vertex[i]*spacing[i]+origin[i]);
 	  }
+	std::cout << "in Execute: " << Outputpath[k*4] << std::endl;
     }
 }
 
@@ -290,24 +292,12 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_MultiScaleTubularityMeasure_getPath
     float * pathPoints = new float[nb_points*4];
     for(int i = 0; i < nb_points; ++i ) 
       {
-	pathPoints[i  ] = Outputpath[4*i + 0];
-        pathPoints[i+1] = Outputpath[4*i + 1];
-        pathPoints[i+2] = Outputpath[4*i + 2];
-        pathPoints[i+3] = Outputpath[4*i + 3];
+	pathPoints[i*4  ] = Outputpath[4*i + 0];
+        pathPoints[i*4+1] = Outputpath[4*i + 1];
+        pathPoints[i*4+2] = Outputpath[4*i + 2];
+        pathPoints[i*4+3] = Outputpath[4*i + 3];
+	std::cout <<"pathPoints[i] : " << pathPoints[i] << std::endl;
       }
-    /*
-    // ------------------------------------------------------------------------
-    // FIXME: real code should go here, just example data:
-
-    int points = 40;
-    float * pathPoints = new float[points*4];
-
-    for(int i = 0; i < points; ++i ) {
-        pathPoints[i] = i;
-        pathPoints[i+1] = i;
-        pathPoints[i+2] = i;
-        pathPoints[i+3] = 6 + ((i % 8) - 4);
-    }*/
 
     // Now convert that to a Java float array:
 
