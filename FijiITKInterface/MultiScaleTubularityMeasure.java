@@ -1,6 +1,7 @@
 package FijiITKInterface;
 
 import fiji.jni.LibraryLoader;
+import tracing.PathResult;
 
 public class MultiScaleTubularityMeasure extends LibraryLoader {
 
