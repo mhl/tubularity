@@ -1,10 +1,10 @@
 .PHONY : all clean test
 .PRECIOUS : build/linux64/libMultiScaleTubularityMeasure.so \
-	build/linux64/libTubularityMeasure.so \
+	build/linux64/libOOFTubularityMeasure.so \
 	build/linux/libMultiScaleTubularityMeasure.so \
-	build/linux/libTubularityMeasure.so \
+	build/linux/libOOFTubularityMeasure.so \
 	FijiITKInterface/FijiITKInterface_MultiScaleTubularityMeasure.h \
-	FijiITKInterface/FijiITKInterface_TubularityMeasure.h
+	FijiITKInterface/FijiITKInterface_OOFTubularityMeasure.h
 
 # Ensure the JDK_INCLUDE_PATH is defined:
 #
@@ -139,7 +139,7 @@ INCLUDE_ITK=-ftemplate-depth-50 -Wall -Wno-deprecated -msse2 -I$(ITK) \
 	-I$(ITK)/Utilities/gdcm/src \
 	-IitkCVLab
 
-all : plugins/TubularityMeasure_Plugin.jar \
+all : plugins/OOFTubularityMeasure_Plugin.jar \
 	plugins/MultiScaleTubularityMeasure_Plugin.jar
 
 plugins/%_Plugin.jar : FijiITKInterface/%.class \

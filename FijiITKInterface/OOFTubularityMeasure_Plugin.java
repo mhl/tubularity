@@ -23,9 +23,9 @@ import ij.measure.Calibration;
 
 import ij3d.*;
 
-public class TubularityMeasure_Plugin implements MouseListener, MouseMotionListener, PlugIn {
+public class OOFTubularityMeasure_Plugin implements MouseListener, MouseMotionListener, PlugIn {
 
-    TubularityMeasure ti;
+    OOFTubularityMeasure ti;
 	boolean ROIpt_1_2 = true;
 	boolean position_checked = false;
     final static boolean MULTICOLORED = true;
@@ -34,8 +34,8 @@ public class TubularityMeasure_Plugin implements MouseListener, MouseMotionListe
 	int Slice1, Slice2;
 	ImagePlus imagePlus;
 
-    public TubularityMeasure_Plugin() {
-        ti = new TubularityMeasure();
+    public OOFTubularityMeasure_Plugin() {
+        ti = new OOFTubularityMeasure();
     }
 
     protected String getSavePath( FileInfo info ) {
