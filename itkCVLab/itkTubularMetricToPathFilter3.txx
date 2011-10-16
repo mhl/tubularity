@@ -30,7 +30,7 @@ namespace itk
 		m_TerminationDistanceFactor = 0.75;
 		m_DescentStepFactor					= 0.3;
 		m_ScaleSpeedFactor					= 1.0;
-		m_NbMaxIter									= 5000;
+		m_NbMaxIter									= 50000;
 		m_IsStartPointGiven         = false;
 	}
 	
@@ -251,6 +251,7 @@ namespace itk
 		seed->InsertElement( 0, node );
 		fastMarching->SetTrialPoints( seed );
 		fastMarching->Update();
+		
 		// Compute the minimal paths and their distances.		
 		std::vector<PathPointer> outputPathList;
 		std::vector<double> outputDistanceList;
@@ -287,6 +288,7 @@ namespace itk
 		
 		CharacteristicsToPathFilterPointer charPathFilter = CharacteristicsToPathFilterType::New();
 		charPathFilter->SetInput( gradientImage );
+		charPathFilter->SetDistance( distImage );
 		charPathFilter->SetStep( m_DescentStepFactor );
 		charPathFilter->SetTerminationDistanceFactor( m_TerminationDistanceFactor );
 		charPathFilter->SetStartPoint( m_StartPoint );
@@ -299,6 +301,13 @@ namespace itk
 		}
 		charPathFilter->Update();
 		
+		SpacingType spacing = input->GetSpacing();
+		double minSpacing = spacing[0];
+		for(unsigned int i = 0; i < SetDimension-1; i++)
+		{
+			minSpacing = vnl_math_min(minSpacing, spacing[i]);
+		}
+		
 		outputPathList.resize( numberOfOutputs );
 		for ( unsigned int n=0; n < numberOfOutputs; n++ )
 		{
@@ -306,6 +315,7 @@ namespace itk
 			
 			// Reverse the path so that it is from the source vertex to the target one.
 			path->Reverse();
+			path->Resample(0.5*minSpacing, input);
 			outputPathList[n] = path;
 		}
 	}
@@ -338,15 +348,13 @@ namespace itk
 				fid2 << std::endl;
 			}
 			
-			std::cout << "path->GetVertexList()->Size() : " << path->GetVertexList()->Size() << std::endl;
 			for(unsigned int k = 0; k < path->GetVertexList()->Size(); k++)
 			{
 				VertexType vertex = path->GetVertexList()->GetElement(k);
 				
 				for (unsigned int i = 0; i < SetDimension-1; i++) 
 				{
-					//fid << spacing[i]*vertex[i] + origin[i] << "\t";
-					fid << vertex[i] << "\t";
+					fid << spacing[i]*vertex[i] + origin[i] << "\t";
 				}
 				fid << 1 << "\t";
 				

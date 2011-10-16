@@ -63,25 +63,25 @@ namespace itk
 		{
 			itkGenericOutputMacro(<<"The region is empty, possibly not set "
 														<<"by the caller. Setting it to the "
-														<<"LargestPossibleRegion of the input image.");
+														<<"BufferedRegion of the input image.");
 			
-			m_Region = m_Image->GetLargestPossibleRegion();
+			m_Region = m_Image->GetBufferedRegion();
 		}
 		else
 		{
-			// Crop the region by the largest possible region of the image.
-			bool isInside = m_Region.Crop(m_Image->GetLargestPossibleRegion());
+			// Crop the region by the buffered possible region of the image.
+			bool isInside = m_Region.Crop(m_Image->GetBufferedRegion());
 			
-			// Check if the region is outside the largest 
-			// possible region of the image.
+			// Check if the region is outside the buffered 
+			// region of the image.
 			if( !isInside )
 			{
 				itkGenericOutputMacro(<<"The region is outside the  "
-															<<"LargestPossibleRegion of the input image. "
+															<<"BufferedRegion of the input image. "
 															<<"Setting it to the "
-															<<"LargestPossibleRegion of the image.");
+															<<"BufferedRegion of the image.");
 				
-				m_Region = m_Image->GetLargestPossibleRegion();
+				m_Region = m_Image->GetBufferedRegion();
 			}
 		}
 		
@@ -157,7 +157,9 @@ namespace itk
 				for( unsigned int dim = 0; dim < Dimension; dim++ )
 				{
 					distSqr += spacingSqr[dim] * offset[dim] * offset[dim];
-					dotProd += offset[dim] * m_HalfCircleDirection[dim];
+					dotProd += offset[dim] * m_HalfCircleDirection[dim] * spacingSqr[dim]; 
+					// Note that, in the above line, spacingSqr essentially converts 
+					// both vectors to world coordinate system. 
 				}
 				if( (!(distSqr > radiusSqrThrsh )) && (dotProd > -epsilon) )
 				{

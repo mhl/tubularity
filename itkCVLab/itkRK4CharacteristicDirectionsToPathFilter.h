@@ -47,8 +47,9 @@ namespace itk
 	 * See: http://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods
 	 *
 	 * The user must provide the following:
-	 *    1. the Characteristics directions
-	 *    2. At least one path end point
+	 *    1 . the Characteristics directions
+	 *    1'. the distance function, in case the Characteristics is 0 at some point.
+	 *    2 . At least one path end point
 	 *			 (AddEndPoint() should be called at least once).
 	 *
 	 * A cost function optimizer may also be provided. If an optimizer
@@ -106,10 +107,17 @@ namespace itk
 		typedef typename InputImageType::IndexType									InputImageIndexType;
 		typedef typename InputImageType::SpacingType								SpacingType;
 		typedef InputImagePixelType																	VectorType;
+		typedef typename VectorType::ValueType											ValuePixelType;
 		
 		typedef VectorLinearInterpolateImageFunction
 		<InputImageType>																						InterpolatorType;
 		typedef typename InterpolatorType::Pointer									InterpolatorPointer;
+		
+		typedef Image< ValuePixelType, SetDimension>								DistanceImageType;
+		typedef typename DistanceImageType::ConstPointer						DistanceImagePointer;
+		
+		typedef ConstNeighborhoodIterator< DistanceImageType >			NeighborhoodIterator;
+		typedef typename NeighborhoodIterator::RadiusType						RadiusType;
 		
 		/** Some path typedefs. */
 		typedef TOutputPath OutputPathType;
@@ -170,6 +178,10 @@ namespace itk
 		void SetStep(double step);
 		itkGetMacro(Step, double);
 		
+		/** Get/Set the distance image  */
+		itkSetMacro(Distance, DistanceImagePointer);
+		itkGetMacro(Distance, DistanceImagePointer);
+		
 	protected:
 		RK4CharacteristicDirectionsToPathFilter();
 		~RK4CharacteristicDirectionsToPathFilter();
@@ -189,6 +201,10 @@ namespace itk
 		 *  If not, the point is pushed back to domain.
 		 */
 		bool IsCurrentPointInsideTheDomain(ContinuousIndexType& p );
+			
+		
+		/** In case the gradient descent fails, either because of a null gradient or because of a */
+		void MakeDiscreteDescentStep(ContinuousIndexType currentIndex, ContinuousIndexType& nextIndex);
 		
 		/** Get the next end point from which to back propagate. */
 		virtual const PointType & GetNextEndPoint();
@@ -203,6 +219,8 @@ namespace itk
 		PointType																										m_StartPoint;
 		unsigned int																								m_CurrentOutput;
 		double																											m_Step;
+		
+		DistanceImagePointer																				m_Distance;
 		
 		InputImageIndexType																					m_StartIndex;
 		InputImageIndexType																					m_LastIndex;

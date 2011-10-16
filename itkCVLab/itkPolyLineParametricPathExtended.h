@@ -32,6 +32,7 @@
 #include "itkPathConstIterator.h"
 #include "itkShapedNeighborhoodIterator.h"
 #include "itkCircularShapedNeighborhoodIterCreator.h"
+#include "itkLinearInterpolateImageFunction.h"
 
 #include <algorithm>
 
@@ -86,6 +87,8 @@ namespace itk
 		typedef ImageRegion<  VDimension >            ImageRegionType;
 		typedef Offset< VDimension >                  OffsetType;
 		typedef Size< VDimension >										SizeType;
+		typedef typename 
+		ImageBase<VDimension>::SpacingType						SpacingType;
 		typedef Point<double,VDimension>              PointType;
 		typedef Vector<double,VDimension>             VectorType;
 		typedef ContinuousIndexType                   VertexType;
@@ -103,9 +106,9 @@ namespace itk
 			// Do not add the vertex if it is too close to the end vertex.
 			if( m_VertexList->Size() > 0 )
 			{
-				const ContinuousIndexType& endVertex = m_VertexList->ElementAt(m_VertexList->Size() - 1);
+				const VertexType& endVertex = m_VertexList->ElementAt(m_VertexList->Size() - 1);
 				
-				if( vertex.EuclideanDistanceTo(endVertex) <  NumericTraits<double>::epsilon() )
+				if( vertex.SquaredEuclideanDistanceTo(endVertex) <  m_Epsilon )
 				{
 					return false;
 				}
@@ -133,19 +136,77 @@ namespace itk
 		/** Reverses the direction of the path. */
 		virtual void Reverse();
 		
-		/** Extracts a subpath of this path */
+		/** Extracts a segment of this path. */
 		virtual void SubPath(InputType startPoint, InputType endPoint, Self* path)  const;
 		
 		/** Rounds the continuous indices this path traverses. */
 		virtual void RoundIndices(  bool removeRepeatedVertices = true );
 		
-		/** Computes bounding image region of the path. */
-		virtual ImageRegionType ComputeBoundingImageRegion() const;
+		/** Resamples the path at the given step intervals in world coordinate system. */
+		template<class TImage>
+		void Resample(double stepInWorldCoords, const TImage* image);
 		
-		/** Compute minimum/maximum/mean radius along the path. */
+		// TODO Add downsample and upsample functions as well.
+
+		/** Smooths the vertex locations and the radius values. */
+		template<class TImage>
+		void SmoothVertexLocationsAndRadii(double avgWindowRadiusInWorldCoords,
+																			 const TImage* image);
+		
+		/** Smooths the vertex locations. */
+		template<class TImage>
+		void SmoothVertexLocations(double avgWindowRadiusInWorldCoords,
+															 const TImage* image);
+		
+		/** Smooths the radius values along the path. */
+		template<class TImage>
+		void SmoothRadiusValues(double avgWindowRadiusInWorldCoords,
+														const TImage* image);
+		
+		/** 
+		 * Computes bounding image region of the tubular path with 
+		 * the radius information taken into account. 
+		 */
+		virtual ImageRegionType 
+		ComputeBoundingImageRegionWithRadius(const SpacingType& spacing) const;
+		/** 
+		 * Computes bounding image region of the centerline of the 
+		 * path without the radius information taken into account. 
+		 */
+		virtual ImageRegionType ComputeBoundingImageRegionWithoutRadius() const;
+
+		/** Compute mean vertex location of the path. */
+		virtual VertexType ComputeMeanVertex() const;
+		
+		/** 
+		 * Compute centroid location of the path. The centroid location 
+		 * is taken as the weighted mean of the linear segments. The weight
+		 * of a segment is taken as the length of it in world coordinates. 
+		 */
+		template<class TImage>
+		VertexType ComputeCentroidVertex(TImage* image) const;
+		
+		/** Compute minimum/maximum/mean/centroid radius along the path. */
 		virtual RadiusType ComputeMinRadius() const;
 		virtual RadiusType ComputeMaxRadius() const;
 		virtual RadiusType ComputeMeanRadius() const;
+		template<class TImage>
+		RadiusType ComputeCentroidRadius(TImage* image) const;
+		
+		/** 
+		 * Scale and shift the radius values of the path. 
+		 * The new values becomes r_new = scale * r_old + shift.
+		 */
+		virtual void ScaleAndShiftRadii(double scaleFactor = 1,
+																		double shift = 0);
+		
+		/** 
+		 * Scale and shift the vertex coordinates of the path that are 
+		 * defined in the continuous image domain. The new coordinate values 
+		 * becomes x_new = scale * x_old + shift.
+		 */
+		virtual void ScaleAndShiftVertices(double scaleFactor = 1,
+																			 double shift = 0);
 		
 		/** 
 		 * Get the list of unique image indices that this path traverses.
@@ -183,6 +244,87 @@ namespace itk
 		std::pair<double,  InputType> 
 		GetEuclDistToPointInWorldCoords(const VertexType& vertex, 
 																		const TImage* image)  const;
+
+		/** 
+		 * Checks whether this path contains the given point. 
+		 * Returns true if it contains the point, or false 
+		 * otherwise.
+		 */
+		template<class TImage>
+		bool DoesContainPoint(const VertexType& vertex,
+													const TImage* image,
+													bool excludeTails = true) const;
+
+		/** 
+		 * Extract the set of path points whose distances to the given point is 
+		 * minimum in world coordinate system. The returned path points are unique. 
+		 * An additional constraint imposed on the path points is that they must 
+		 * include the given point, that is the radius value at the path point must 
+		 * be greater than or equal to the distance to the point.
+		 */
+		template <class TImage>
+		void
+		ExtractClosestPathPointsThatContainsPointInWorldCoords(const VertexType& vertex, 
+																													 const TImage* image,
+																													 std::pair< double, std::vector<InputType> >& outputPairs,
+																													 bool excludeTails = true) const;
+		
+		
+		/** 
+		 * Checks whether this path contains the centerline 
+		 * vertices of the given path. Returns true if it contains 
+		 * all the vertices, or false otherwise.
+		 */
+		template<class TImage>
+		bool DoesContainPointsOfPath(const Self* path,
+																 const TImage* image,
+																 bool excludeTails = true) const;
+
+		/** 
+		 * Approximately computes the length of this path's connected 
+		 * longest segment that resides inside the given path in world 
+		 * coordinates and returns it. 
+		 */
+		template <class TImage>
+		double ComputeMaxPathSegmLengthOutsidePath(const Self* path,
+																							 const TImage* image,
+																							 bool excludeTails = true) const;		
+		
+		/** 
+		 * Approximately computes the total length of this path's 
+		 * centerline inside the given path in world coordinates 
+		 * and returns it. 
+		 */
+		template <class TImage>
+		double ComputePathLengthInsidePath(const Self* path,
+																			 const TImage* image,
+																			 bool excludeTails = true) const;
+		
+		/** 
+		 * Approximately computes the total length of this path's 
+		 * centerline outside the given path in world coordinates 
+		 * and returns it. 
+		 */
+		template <class TImage>
+		double ComputePathLengthOutsidePath(const Self* path,
+																			  const TImage* image,
+																				bool excludeTails = true) const;
+		
+		/** 
+		 * Approximately computes the total length of the path's 
+		 * centerline inside the given mask image in world coordinates. 
+		 * Mask image membership is check by casting the pixel value to a bool.
+		 */
+		template <class TImage>
+		double ComputePathLengthInsideMask(const TImage* maskImage) const;
+		
+		/** 
+		 * Approximately computes the total length of the path's 
+		 * centerline outside the given mask image in world coordinates. 
+		 * Mask image membership is check by casting the pixel value to a bool.
+		 */
+		template <class TImage>
+		double ComputePathLengthOutsideMask(const TImage* maskImage) const;
 		
 		/** 
 		 * Convert an N-D path to an (N-1)-D path by discarding the radius 
@@ -203,24 +345,146 @@ namespace itk
 		 * Returns the number intersections between this path and a given one. To 
 		 * check for intersections, the points on the paths are first rounded and then 
 		 * compared. The number of intersections can be at most the number of point on
-		 * this path.
+		 * this path. 
+		 * 
+		 * TODO This implementation computes the intersection of the centerline
+		 * points only and discards the radius values.
 		 */
 		virtual unsigned long GetNoOfIntersectionPoints(const Self* path) const;
 		
-		/** Compute the sum of the pixels along the path. It is assumed that 
-		 * the + operator for the type TSum is defined.
+		/** 
+		 * Computes the numberß of pixels in both the intersection and union 
+		 * regions of this path and the given one.
+		 */
+		template<class TImage>
+		void ComputeIntersectionAndUnionInImageCoords(const Self* path,
+																									const TImage* image,
+																									unsigned long& intersectionVolume,
+																									unsigned long& unionVolume,
+																									bool excludeTails = true) const;
+		/** 
+		 * Computes the volumes of the both intersection and union regions  of 
+		 * this path and the given one in world coordinates.
+		 */		
+		template<class TImage>
+		void ComputeIntersectionAndUnionInWorldCoords(const Self* path,
+																									const TImage* image,
+																									double& intersectionVolume,
+																									double& unionVolume,
+																									bool excludeTails = true) const;
+		
+		
+		/** 
+		 * Tests if this path is completely inside the given region.
+		 */
+		bool IsInside(const ImageRegionType& region) const
+		{
+			return region.IsInside(ComputeBoundingImageRegionWithoutRadius());
+		}
+			
+		/** 
+		 * Computes the sum of the pixels along the path. It is assumed that 
+		 * the + operator for the type TSum is defined. When the 
+		 * interpolatePixels flag is true, bilinear interpolation of the pixels
+		 * values are used, otherwise nearest neighbor interpolation is used.
 		 */
 		template<class TSum, class TImage> 
-		TSum PixelSum(const TImage* image ) const
+		TSum PixelSum(const TImage* image,
+									bool interpolatePixels = true)
 		{
-			typedef  PathConstIterator<TImage, Self>				IterType;
-			typedef  TSum																		SumType;
+			typedef PathConstIterator<TImage, Self>					IterType;
+			typedef	typename TImage::PixelType							PixelType;
+			typedef TSum																		SumType;
+			typedef LinearInterpolateImageFunction<TImage, 
+			typename ContinuousIndexType::CoordRepType>			InterpolatorType;
 			
 			SumType pixelSum = NumericTraits<SumType>::ZeroValue();
 			IterType iter(image, this);
+			if( interpolatePixels )
+			{
+				typename InterpolatorType::Pointer interpolator = InterpolatorType::New();
+				
+				interpolator->SetInputImage( image );
+				
+				for(iter.GoToBegin(); !iter.IsAtEnd(); ++iter)
+				{
+					PixelType val = 
+					interpolator->EvaluateAtContinuousIndex
+					(this->Evaluate(iter.GetPathPosition()));
+					pixelSum = pixelSum + static_cast<SumType>(val);
+				}
+			}
+			else
+			{
+				for(iter.GoToBegin(); !iter.IsAtEnd(); ++iter)
+				{
+					pixelSum = pixelSum + static_cast<SumType>(iter.Get());
+				}
+			}
+			
+			return pixelSum;
+		}
+		
+		/** 
+		 * Computes the sum of the pixels along the path similar to the PixelSum() 
+		 * function, but weights pixel values by the Eucliden distance of their 
+		 * connecting path segments in the world coordinate system.
+		 */
+		template<class TSum, class TImage> 
+		TSum PixelSumEuclDistWeighted(const TImage* image,
+																	bool interpolatePixels = true)
+		{
+			typedef PathConstIterator<TImage, Self>					IterType;
+			typedef	typename TImage::PixelType							PixelType;
+			typedef TSum																		SumType;
+			typedef LinearInterpolateImageFunction<TImage, 
+			typename ContinuousIndexType::CoordRepType>			InterpolatorType;
+			
+			SumType pixelSum = NumericTraits<SumType>::ZeroValue();
+			IterType iter(image, this);
+			typename InterpolatorType::Pointer interpolator;
+			if( interpolatePixels )
+			{
+				interpolator = InterpolatorType::New();
+				interpolator->SetInputImage( image );
+			}
+			
+			double distInWorldCoord;
+			InputType prevPos;
+			InputType currentPos;
+			PixelType prevVal;
+			PixelType currentVal;
+			bool isAtBegin = true;
 			for(iter.GoToBegin(); !iter.IsAtEnd(); ++iter)
 			{
-				pixelSum = pixelSum + static_cast<SumType>(iter.Get());
+				currentPos = iter.GetPathPosition();
+				if( interpolatePixels )
+				{
+					currentVal = 
+					interpolator->EvaluateAtContinuousIndex(this->Evaluate(currentPos));
+				}
+				else
+				{
+					currentVal = iter.Get();
+				}
+								
+				if( !isAtBegin )
+				{
+					// Compute the distance between the previous position and 
+					// the current one in world coordinates.
+					distInWorldCoord = this->GetDistanceInWorldCoords(prevPos,
+																														currentPos,
+																														image);
+					
+					// Accumulate the average of the pixel value pairs of successive points 
+					// weighted by the euclidean length of the path segment between them.
+					pixelSum = pixelSum + 
+					static_cast<SumType>(0.5 * distInWorldCoord * (prevVal + currentVal));
+				}
+				
+				prevPos = currentPos;
+				prevVal = currentVal;
+				isAtBegin = false;
 			}
 			
 			return pixelSum;
@@ -235,11 +499,85 @@ namespace itk
 																			image);
 		}
 		
-		/** Computes the distance between two points on the path */
+		/** 
+		 * Computes the Euclidean length between the given two points 
+		 * on the path in the world coordinates.
+		 */
 		template<class TImage>
 		double GetDistanceInWorldCoords(InputType startPoint, 
-																						InputType endPoint, 
-																						const TImage* image ) const
+																		InputType endPoint, 
+																		const TImage* image ) const
+		{
+			if( m_VertexList->Size() < 2 )
+			{
+				return 0.0;
+			}
+			
+			if( endPoint > this->EndOfInput() )
+			{
+				itkExceptionMacro(<<"endPoint is larger than the end of the path.");
+			}
+			else if( endPoint < this->StartOfInput() )
+			{
+				itkExceptionMacro(<<"endPoint is smaller than the start of the path.");
+			}
+			if( startPoint > this->EndOfInput() )
+			{
+				itkExceptionMacro(<<"startPoint is larger than the end of the path.");
+			}
+			else if( startPoint < this->StartOfInput() )
+			{
+				itkExceptionMacro(<<"startPoint is smaller than the start of the path.");
+			}
+			
+			if( endPoint < startPoint )
+			{
+				std::swap(startPoint, endPoint);
+			}
+			
+			if( vcl_fabs(endPoint - startPoint) < m_Epsilon )
+			{
+				return 0.0;
+			}
+			
+			double dist = 0;
+			ContinuousIndexType currentContIndx = Evaluate(startPoint);
+			PointType currentPointLoc;
+			image->TransformContinuousIndexToPhysicalPoint(currentContIndx, currentPointLoc);
+			unsigned long nextVertexPoint = ((unsigned long)(startPoint - this->StartOfInput())) + 1;
+			ContinuousIndexType nextContIndx = m_VertexList->ElementAt( nextVertexPoint );
+			PointType nextPointLoc;
+			while((endPoint - ((InputType)nextVertexPoint) - this->StartOfInput()) > 
+						m_Epsilon )
+			{
+				image->TransformContinuousIndexToPhysicalPoint(nextContIndx, nextPointLoc);
+				dist += nextPointLoc.EuclideanDistanceTo(currentPointLoc);
+				
+				currentPointLoc = nextPointLoc;
+				nextVertexPoint++;
+				nextContIndx = m_VertexList->ElementAt( nextVertexPoint );
+			}
+			
+			// Finally, add the distance from the current point to the end point.
+			image->TransformContinuousIndexToPhysicalPoint(Evaluate(endPoint), nextPointLoc);
+			dist += nextPointLoc.EuclideanDistanceTo(currentPointLoc);
+			
+			return dist;
+		}
+		
+		/** Computes the length of the path in image coordinates. */
+		double GetLengthInImageCoords() const
+		{
+			return GetDistanceInImageCoords(this->StartOfInput(),
+																			this->EndOfInput());
+		}
+		
+		/** 
+		 * Computes the Euclidean length between the given two points 
+		 * on the path in the image coordinates.
+		 */
+		double GetDistanceInImageCoords(InputType startPoint, 
+																		InputType endPoint) const
 		{
 			if( m_VertexList->Size() < 2 )
 			{
@@ -267,73 +605,41 @@ namespace itk
 				startPoint = this->StartOfInput();
 			}
 			
-			if( vcl_fabs(endPoint - startPoint) < NumericTraits<InputType>::epsilon() )
+			if( vcl_fabs(endPoint - startPoint) < m_Epsilon )
 			{
 				return 0;
 			}
 			
 			double dist = 0;
 			ContinuousIndexType currentContIndx = Evaluate(startPoint);
-			PointType currentPointLoc;
-			image->TransformContinuousIndexToPhysicalPoint(currentContIndx, currentPointLoc);
 			unsigned long nextVertexPoint = ((unsigned long)(startPoint - this->StartOfInput())) + 1;
 			ContinuousIndexType nextContIndx = m_VertexList->ElementAt( nextVertexPoint );
-			PointType nextPointLoc;
 			while((endPoint - ((InputType)nextVertexPoint) - this->StartOfInput()) > 
-						NumericTraits<InputType>::epsilon() )
+						m_Epsilon )
 			{
-				image->TransformContinuousIndexToPhysicalPoint(nextContIndx, nextPointLoc);
-				dist += nextPointLoc.EuclideanDistanceTo(currentPointLoc);
+				dist += nextContIndx.EuclideanDistanceTo(currentContIndx);
 				
-				currentPointLoc = nextPointLoc;
+				currentContIndx = nextContIndx;
 				nextVertexPoint++;
 				nextContIndx = m_VertexList->ElementAt( nextVertexPoint );
 			}
 			
 			// Finally, add the distance from the current point to the end point.
-			image->TransformContinuousIndexToPhysicalPoint(Evaluate(endPoint), nextPointLoc);
-			dist += nextPointLoc.EuclideanDistanceTo(currentPointLoc);
+			dist += Evaluate(endPoint).EuclideanDistanceTo(currentContIndx);
 			
 			return dist;
-		}			
-		
-		/** 
-		 * Computes the length of the path in world coordinates along the pixels 
-		 * of the image grid and not the lines of the path.
-		 */
-		template<class TImage>
-		double GetLengthOnImageGridInWorldCoords(const TImage* image ) const
-		{
-			typedef itk::PathConstIterator<TImage, Self>			PathIterType;
-			
-			double distInWorldCoord = 0.0;
-			PathIterType pathIter(image, this);
-			
-			bool isAtBegin = true;
-			typename TImage::PointType prevWorldPoint;
-			typename TImage::PointType currentWorldPoint;			
-			
-			for(pathIter.GoToBegin(); !pathIter.IsAtEnd(); ++pathIter)
-			{
-				image->TransformIndexToPhysicalPoint(pathIter.GetIndex(), currentWorldPoint);
-				
-				if( !isAtBegin )
-				{
-					// Compute the distance between the previous point and 
-					// the current one in world coordinates.
-					distInWorldCoord += currentWorldPoint.EuclideanDistanceTo(prevWorldPoint);
-				}
-				
-				prevWorldPoint = currentWorldPoint;
-				isAtBegin = false;
-			}
-			
-			return distInWorldCoord;
 		}
 		
+		
+		// TODO Why the default step size is diameter and, for instance, not radius.
+		// If stepSizeInWorldCoords <= 0, then path diameter is used as the step size.
+		// This is the default behaviour, i.e., when no argument is not provided to 
+		// the function.
+		// If the path radius is zero, then 1.0 is used as the default step size.
 		template<class TImage>
-		VectorType EvaluateDirectionVector(const InputType & input, 
-																							 const TImage* image ) const
+		VectorType EvaluateDirectionInWorldCoords(const InputType & input, 
+																							const TImage* image,
+																							const double & stepSizeInWorldCoords = 0.0) const
 		{
 			VectorType diffVector;
 			if( m_VertexList->Size() < 2 )
@@ -342,42 +648,67 @@ namespace itk
 				return diffVector;
 			}
 			
-			bool nextExists = (input + 1.0) <= this->EndOfInput();
-			bool prevExists = (input - 1.0) >= this->StartOfInput();	
-			VertexType currentIndex = this->Evaluate( input );
-			VertexType prevIndex;
-			VertexType nextIndex;
-			if( prevExists )
+			InputType pathPoint = input;
+			if( pathPoint < this->StartOfInput() )
 			{
-				prevIndex = this->Evaluate( input - 1 );
+				pathPoint = this->StartOfInput();
 			}
-			else
+			if( pathPoint > this->EndOfInput() )
 			{
-				prevIndex = currentIndex;
-			}
-			if( nextExists )
-			{
-				nextIndex = this->Evaluate( input + 1 );
-			}
-			else
-			{
-				nextIndex = currentIndex;
-			}
-			if( !prevExists && !nextExists  )
-			{
-				prevIndex = this->Evaluate( Math::Floor<InputType>(input) );
-				nextIndex = this->Evaluate( Math::Ceil<InputType>(input) );
+				pathPoint = this->EndOfInput();
 			}
 			
+			double stepSize = stepSizeInWorldCoords;
+			if( stepSize < m_Epsilon )
+			{
+				stepSize = 2.0 * this->EvaluateRadius(pathPoint);
+			}
+			if( stepSize < m_Epsilon )
+			{
+				stepSize = 1.0;
+			}
+
+			// Find the previous and the next path points from which the direction 
+			// vector will be extracted.
+			VertexType currentIndex;
+			VertexType prevIndex;
+			VertexType nextIndex;
+			InputType nextPathPoint;
+			InputType prevPathPoint;
+			double traversedDistance;
+			do
+			{
+				this->TraverseDistanceInWorldCoords(pathPoint,
+																						image,
+																						stepSize,
+																						false,
+																						prevPathPoint,
+																						traversedDistance);
+				this->TraverseDistanceInWorldCoords(pathPoint,
+																						image,
+																						stepSize,
+																						true,
+																						nextPathPoint,
+																						traversedDistance);
+				
+				currentIndex = this->Evaluate( pathPoint );
+				prevIndex = this->Evaluate( prevPathPoint );
+				nextIndex = this->Evaluate( nextPathPoint );
+				
+				stepSize = stepSize / 2.0;
+			}
+			while((prevIndex.SquaredEuclideanDistanceTo(nextIndex) < m_Epsilon) &&
+						(prevIndex.SquaredEuclideanDistanceTo(currentIndex) < m_Epsilon) &&
+						(stepSize > m_Epsilon));
+			
 			// Check if two points are the same.
-			if(prevIndex.EuclideanDistanceTo(nextIndex) < NumericTraits<double>::epsilon())
+			if(prevIndex.SquaredEuclideanDistanceTo(nextIndex) < m_Epsilon)
 			{
 				// If all points are at the same location, then 
-				// return zero vector.
-				if(prevIndex.EuclideanDistanceTo(currentIndex) < NumericTraits<double>::epsilon())
+				// throw an exception.
+				if(prevIndex.SquaredEuclideanDistanceTo(currentIndex) < m_Epsilon)
 				{
-					diffVector.Fill(0.0);
-					return diffVector;
+					itkExceptionMacro(<<"Path direction vector could not be evaluated!");
 				}
 				else // else take the previous point as the current one 
 					// to compute the vector.
@@ -398,149 +729,182 @@ namespace itk
 			return diffVector;
 		}
 		
-		
+		// Traverse each pixel along the path and sets its value
+		// to the given one.
 		template<class TImage>
-		void Overlay(TImage* image, 
-								 typename TImage::PixelType overlayVal,
-								 double radiusMultipFactor,
-								 bool clipTails = false) const
+		void OverlayCenterlines(TImage* image, 
+														typename TImage::PixelType overlayVal) const
 		{
-			typedef TImage																						ImageType;
-			typedef ShapedNeighborhoodIterator<ImageType>							NeighborhoodIteratorType;		
+			typedef TImage	ImageType;
 			
-			typedef Image<bool, ImageType::ImageDimension>						TailMapImageType;
-			typedef ShapedNeighborhoodIterator<TailMapImageType>			TailMapNeighborhoodIteratorType;
-			
-			typename ImageType::RegionType region = image->GetLargestPossibleRegion();
-			NeighborhoodIteratorType edgeNeighIter;
-			
-			// Creating a circular shaped neighborhood iterator creator.
-			CircularShapedNeighborhoodIterCreator<NeighborhoodIteratorType> iterCreator;
-			iterCreator.SetRadiusInImageCoordinates( false );		// radius values of the path are stored in world coords.
-			iterCreator.SetRegion( region );
-			iterCreator.SetImage( image );
-			
-			
-			typename TailMapImageType::Pointer tailMapImage = 0;
-			if( clipTails )
+			// Check if the path is completely inside the image buffered region.
+			ImageRegionType region = image->GetBufferedRegion();
+			if( !this->IsInside(region) )
 			{
-				if( m_VertexList->Size() <= 1 )
-				{
-					itkWarningMacro(<<"Clip Tails flag is turned on but the path has less than two vertices. "
-													<<"For overlaying with clipping, at least two vertices are required "
-													<<"to be in the path so that path direction at the start and end of the "
-													<<"path can be determined. Skipping the tail clipping step ...");
-				}
-				else
-				{
-					// Create a boolean map image for the tail regions.
-					tailMapImage = TailMapImageType::New();
-					tailMapImage->SetRegions( region );
-					tailMapImage->SetSpacing( image->GetSpacing() );
-					tailMapImage->SetOrigin( image->GetOrigin() );
-					tailMapImage->SetDirection(image->GetDirection() );
-					tailMapImage->SetNumberOfComponentsPerPixel(
-																											image->GetNumberOfComponentsPerPixel() );
-					tailMapImage->Allocate();
-					tailMapImage->FillBuffer( true );
-
-					
-					// Creating a circular shaped neighborhood iterator creator only for the tail regions.
-					CircularShapedNeighborhoodIterCreator<TailMapNeighborhoodIteratorType> tailMapIterCreator;
-					tailMapIterCreator.SetRadiusInImageCoordinates( false );		// radius values of the path are stored in world coords.
-					tailMapIterCreator.SetRegion( region );
-					tailMapIterCreator.SetImage( tailMapImage );
-					tailMapIterCreator.SetGenerateHalfCircularNeigh( true );
-					
-					// Create a half-circular neighborhood iterator for the start pixel 
-					// of the path.
-					TailMapNeighborhoodIteratorType tailMapEdgeNeighIter;
-					VertexType firstVertex = m_VertexList->ElementAt(1);
-					VertexType secondVertex = m_VertexList->ElementAt(0);
-					
-					tailMapIterCreator.SetRadius(this->EvaluateRadius(this->StartOfInput()) * 
-																										 radiusMultipFactor);
-					tailMapIterCreator.SetHalfCircleDirection( secondVertex - firstVertex );
-					tailMapIterCreator.GenerateIterator(tailMapEdgeNeighIter);
-					
-					typename ImageType::IndexType startIndex;
-					startIndex.CopyWithRound( secondVertex );
-					if( !(region.IsInside( startIndex )) )
-					{
-						itkExceptionMacro(<<"Start index of the path " << startIndex 
-															<<" is found to be outside the image largest possible region "
-															<<region);
-					}
-					tailMapEdgeNeighIter.SetLocation( startIndex );
-					
-					// Now, mark the half-circular region for the start pixel 
-					// of the path.
-					this->OverlayFromNeighIter(region, 
-																		 false, 
-																		 tailMapEdgeNeighIter);
-					
-					
-					// Create a half-circular neighborhood iterator for the end pixel 
-					// of the path.
-					firstVertex = m_VertexList->ElementAt(m_VertexList->Size() - 2);
-					secondVertex = m_VertexList->ElementAt(m_VertexList->Size() - 1);
-					
-					tailMapIterCreator.SetRadius(this->EvaluateRadius(this->EndOfInput()) * 
-																			 radiusMultipFactor);
-					tailMapIterCreator.SetHalfCircleDirection( secondVertex - firstVertex );
-					tailMapIterCreator.GenerateIterator(tailMapEdgeNeighIter);
-					
-					typename ImageType::IndexType endIndex;
-					endIndex.CopyWithRound( secondVertex );
-					if( !(region.IsInside( endIndex )) )
-					{
-						itkExceptionMacro(<<"End index of the path " << endIndex 
-															<<" is found to be outside the image largest possible region "
-															<<region);
-					}
-					tailMapEdgeNeighIter.SetLocation( endIndex );
-					
-					// Now, mark the half-circular region for the end pixel 
-					// of the path.
-					this->OverlayFromNeighIter(region, 
-																		 false, 
-																		 tailMapEdgeNeighIter);
-					
-					// Finally, be sure that the start and end indices 
-					// of the path centerline are excluded from the tail map.
-					tailMapImage->SetPixel( startIndex, true );
-					tailMapImage->SetPixel( endIndex, true );
-				}				
+				itkExceptionMacro(<<"The path is not completely inside "
+													<<"the image buffered region "
+													<<region);
 			}
-
 			
-			// Traverse each pixel along the path and for 
-			// each such pixel traverse its circular neighborhood.
 			PathConstIterator<ImageType, Self> iter(image, this );
 			for( iter.GoToBegin(); !iter.IsAtEnd(); ++iter )
 			{				
-				// Check if the index is inside the image region.
-				if( !(region.IsInside( iter.GetIndex() )) )
-				{
-					itkExceptionMacro(<<"A path point index " << iter.GetIndex() 
-														<<" is found to be outside the image largest possible region "
-														<<region);
-				}
-				
-				// Create a new neighborhood iterator with the radius attribute taken 
-				// from the path point of the tubularity graph edge.
-				iterCreator.SetRadius(this->EvaluateRadius(iter.GetPathPosition()) * 
-															radiusMultipFactor);
-				iterCreator.GenerateIterator(edgeNeighIter);
-				
-				edgeNeighIter.SetLocation( iter.GetIndex() );
-				
-				this->OverlayFromNeighIter(region, 
-																	 overlayVal, 
-																	 edgeNeighIter, 
-																	 tailMapImage.GetPointer());
+				image->SetPixel(iter.GetIndex(), overlayVal);
 			}
 		}
+		
+		
+		// TODO Fix the bug in following function. The reasoning about the tail 
+		// map image is wrong because a path can turn and end on itself. 
+		// Use the DoesContainPoint method instead.
+//		template<class TImage>
+//		void Overlay(TImage* image, 
+//								 typename TImage::PixelType overlayVal,
+//								 double radiusMultipFactor,
+//								 bool clipTails = false) const
+//		{
+//			typedef TImage																						ImageType;
+//			typedef ShapedNeighborhoodIterator<ImageType>							NeighborhoodIteratorType;		
+//			
+//			typedef Image<bool, ImageType::ImageDimension>						TailMapImageType;
+//			typedef ShapedNeighborhoodIterator<TailMapImageType>			TailMapNeighborhoodIteratorType;
+//			
+//			ImageRegionType region = image->GetBufferedRegion();
+//			NeighborhoodIteratorType edgeNeighIter;
+//			
+//			// Creating a circular shaped neighborhood iterator creator.
+//			CircularShapedNeighborhoodIterCreator<NeighborhoodIteratorType> iterCreator;
+//			iterCreator.SetRadiusInImageCoordinates( false );		// radius values of the path are stored in world coords.
+//			iterCreator.SetRegion( region );
+//			iterCreator.SetImage( image );
+//			
+//			
+//			typename TailMapImageType::Pointer tailMapImage = 0;
+//			if( clipTails )
+//			{
+//				if( m_VertexList->Size() <= 1 )
+//				{
+//					itkWarningMacro(<<"Clip Tails flag is turned on but the path has less than two vertices. "
+//													<<"For overlaying with clipping, at least two vertices are required "
+//													<<"to be in the path so that path direction at the start and end of the "
+//													<<"path can be determined. Skipping the tail clipping step ...");
+//				}
+//				else
+//				{
+//					// Compute the bounding box of the tubular path after 
+//					// rescaling the radius values with the given factor.
+//					Pointer clone = this->Clone();
+//					clone->ScaleAndShiftRadii(radiusMultipFactor);
+//					ImageRegionType boundingRegion = 
+//					clone->ComputeBoundingImageRegionWithRadius(image->GetSpacing());
+//					boundingRegion.Crop(region);
+//					
+//					// Create a boolean map image for the tail regions.
+//					tailMapImage = TailMapImageType::New();
+//					tailMapImage->SetLargestPossibleRegion( image->GetLargestPossibleRegion() );
+//					tailMapImage->SetBufferedRegion( boundingRegion );
+//					tailMapImage->SetRequestedRegion( boundingRegion );
+//					tailMapImage->SetSpacing( image->GetSpacing() );
+//					tailMapImage->SetOrigin( image->GetOrigin() );
+//					tailMapImage->SetDirection(image->GetDirection() );
+//					tailMapImage->SetNumberOfComponentsPerPixel(image->GetNumberOfComponentsPerPixel() );
+//					tailMapImage->Allocate();
+//					tailMapImage->FillBuffer( true );
+//
+//					
+//					// Creating a circular shaped neighborhood iterator creator only for the tail regions.
+//					CircularShapedNeighborhoodIterCreator<TailMapNeighborhoodIteratorType> tailMapIterCreator;
+//					tailMapIterCreator.SetRadiusInImageCoordinates( false );		// radius values of the path are stored in world coords.
+//					tailMapIterCreator.SetRegion( boundingRegion );
+//					tailMapIterCreator.SetImage( tailMapImage );
+//					tailMapIterCreator.SetGenerateHalfCircularNeigh( true );
+//					
+//					// Create a half-circular neighborhood iterator for the start pixel 
+//					// of the path.
+//					TailMapNeighborhoodIteratorType tailMapEdgeNeighIter;
+//					VertexType firstVertex = m_VertexList->ElementAt(1);
+//					VertexType secondVertex = m_VertexList->ElementAt(0);
+//					
+//					tailMapIterCreator.SetRadius(this->EvaluateRadius(this->StartOfInput()) * 
+//																										 radiusMultipFactor);
+//					tailMapIterCreator.SetHalfCircleDirection( secondVertex - firstVertex );
+//					tailMapIterCreator.GenerateIterator(tailMapEdgeNeighIter);
+//					
+//					typename ImageType::IndexType startIndex;
+//					startIndex.CopyWithRound( secondVertex );
+//					if( !(region.IsInside( startIndex )) )
+//					{
+//						itkExceptionMacro(<<"Start index of the path " << startIndex 
+//															<<" is found to be outside the image buffered region "
+//															<<region);
+//					}
+//					tailMapEdgeNeighIter.SetLocation( startIndex );
+//					
+//					// Now, mark the half-circular region for the start pixel 
+//					// of the path.
+//					this->OverlayFromNeighIter(false, 
+//																		 tailMapEdgeNeighIter);
+//					
+//					
+//					// Create a half-circular neighborhood iterator for the end pixel 
+//					// of the path.
+//					firstVertex = m_VertexList->ElementAt(m_VertexList->Size() - 2);
+//					secondVertex = m_VertexList->ElementAt(m_VertexList->Size() - 1);
+//					
+//					tailMapIterCreator.SetRadius(this->EvaluateRadius(this->EndOfInput()) * 
+//																			 radiusMultipFactor);
+//					tailMapIterCreator.SetHalfCircleDirection( secondVertex - firstVertex );
+//					tailMapIterCreator.GenerateIterator(tailMapEdgeNeighIter);
+//					
+//					typename ImageType::IndexType endIndex;
+//					endIndex.CopyWithRound( secondVertex );
+//					if( !(region.IsInside( endIndex )) )
+//					{
+//						itkExceptionMacro(<<"End index of the path " << endIndex 
+//															<<" is found to be outside the path image buffered region "
+//															<<region);
+//					}
+//					tailMapEdgeNeighIter.SetLocation( endIndex );
+//					
+//					// Now, mark the half-circular region for the end pixel 
+//					// of the path.
+//					this->OverlayFromNeighIter(false, 
+//																		 tailMapEdgeNeighIter);
+//					
+//					// Finally, be sure that the start and end indices 
+//					// of the path centerline are excluded from the tail map.
+//					tailMapImage->SetPixel( startIndex, true );
+//					tailMapImage->SetPixel( endIndex, true );
+//				}				
+//			}
+//
+//			
+//			// Traverse each pixel along the path and for 
+//			// each such pixel traverse its circular neighborhood.
+//			PathConstIterator<ImageType, Self> iter(image, this );
+//			for( iter.GoToBegin(); !iter.IsAtEnd(); ++iter )
+//			{				
+//				// Check if the index is inside the image region.
+//				if( !(region.IsInside( iter.GetIndex() )) )
+//				{
+//					itkExceptionMacro(<<"A path point index " << iter.GetIndex() 
+//														<<" is found to be outside the image buffered region "
+//														<<region);
+//				}
+//				
+//				// Create a new neighborhood iterator with the radius attribute taken 
+//				// from the path point of the tubularity graph edge.
+//				iterCreator.SetRadius(this->EvaluateRadius(iter.GetPathPosition()) * 
+//															radiusMultipFactor);
+//				iterCreator.GenerateIterator(edgeNeighIter);
+//				
+//				edgeNeighIter.SetLocation( iter.GetIndex() );
+//				
+//				this->OverlayFromNeighIter(overlayVal, 
+//																	 edgeNeighIter, 
+//																	 tailMapImage.GetPointer());
+//			}
+//		}
 		
 		
 		// TODO Maybe create a path to path filter from this function!
@@ -730,7 +1094,7 @@ namespace itk
 		}
 		
 		
-		// TODO Create a filter (Image to Image filter) out of this (Of course without writing to the file). Used only for debugging.
+		// TODO Delete this function. Used only for debugging.
 		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		template<class TImage>
 		void OverlayAndWrite(const TImage* image, 
@@ -907,23 +1271,26 @@ namespace itk
 		
 		// TODO Create a path to path filter from this function!
 		template<class TImage>
-		void  ExtractPathSegments(std::vector<Pointer>& pathSegmentArray,
-															double pathSegmentLengthInWorldCoords,
-															double stepSizeInWorldCoords,
-															const TImage* image) const
+		void  ExtractPathSegmentsAsymmetric(std::vector<Pointer>& pathSegmentArray,
+																				double pathSegmentLengthInWorldCoords,
+																				double stepSizeInWorldCoords,
+																				const TImage* image) const
 		{
 			pathSegmentArray.clear();
 			
+			double traversedDistance; // dummy
+			
 			InputType pathSegmentEndPoint;
 			for(InputType i = this->StartOfInput(); 
-					this->EndOfInput() - i  < NumericTraits<InputType>::epsilon();)
+					(this->EndOfInput() - i)  > m_Epsilon;)
 			{
 				// Get the end point of the current path segment.
 				if( !TraverseDistanceInWorldCoords(i,
 																					 image,
 																					 pathSegmentLengthInWorldCoords,
 																					 true,
-																					 pathSegmentEndPoint) )
+																					 pathSegmentEndPoint,
+																					 traversedDistance) )
 				{
 					// At this point, we reach end of the path!
 					
@@ -940,8 +1307,10 @@ namespace itk
 					else
 					{					
 						// If segment length is larger than the step size, try to span the 
-						// tail of the path so that we cover the path entirely.
-						if( pathSegmentLengthInWorldCoords >= stepSizeInWorldCoords )
+						// tail of the path so that we cover the path entirely, while 
+						// keeping the length of the last segment at 
+						// pathSegmentLengthInWorldCoords.
+						if( pathSegmentLengthInWorldCoords - stepSizeInWorldCoords > -m_Epsilon )
 						{
 							// Traverse in the backward direction starting from the end
 							// of the path.
@@ -949,7 +1318,8 @@ namespace itk
 																						image,
 																						pathSegmentLengthInWorldCoords,
 																						false,
-																						pathSegmentEndPoint);
+																						pathSegmentEndPoint,
+																						traversedDistance);
 							
 							Pointer pathSegment = Self::New();
 							SubPath(pathSegmentEndPoint, this->EndOfInput(), pathSegment);
@@ -971,7 +1341,8 @@ namespace itk
 																					 image,
 																					 stepSizeInWorldCoords,
 																					 true,
-																					 i) )
+																					 i,
+																					 traversedDistance) )
 				{
 					break;
 				}
@@ -979,21 +1350,194 @@ namespace itk
 			
 		}
 		
+		
+		
+		// TODO Create a path to path filter from this function!
+		template<class TImage>
+		void  ExtractPathSegmentsSymmetric(std::vector<Pointer>& pathSegmentArray,
+																			 double pathSegmentLengthInWorldCoords,
+																			 double stepSizeInWorldCoords,
+																			 const TImage* image) const
+		{
+			pathSegmentArray.clear();
+			
+			double pathLength = this->GetLengthInWorldCoords(image);
+			
+			// Check if the total path length is smaller than the 
+			// segment length. If so, add the whole path to the list.
+			if( pathLength - pathSegmentLengthInWorldCoords < m_Epsilon )
+			{
+				Pointer pathSegment = this->Clone();
+				pathSegmentArray.push_back(pathSegment);
+				return;
+			}
+			
+			double traversedDistance; // dummy
+			
+			// Determine the start point for starting from the middle and going in the 
+			// backward direction. The first segment will be centralized at the middle 
+			// of the path.
+			InputType i = 0.5*(this->EndOfInput() - this->StartOfInput());
+			TraverseDistanceInWorldCoords(i,
+																		image,
+																		0.5 * pathSegmentLengthInWorldCoords,
+																		true,
+																		i,
+																		traversedDistance);
+			
+			InputType pathSegmentStartPoint;
+			InputType pathSegmentEndPoint;
+			while((i - this->StartOfInput())  > m_Epsilon)
+			{
+				// Get the start point of the current path segment.
+				if( !TraverseDistanceInWorldCoords(i,
+																					 image,
+																					 pathSegmentLengthInWorldCoords,
+																					 false,
+																					 pathSegmentStartPoint,
+																					 traversedDistance) )
+				{
+					// At this point, we reach end of the path!
+								
+					// If segment length is larger than the step size, try to span the 
+					// tail of the path so that we cover the path entirely, while 
+					// keeping the length of the last segment at 
+					// pathSegmentLengthInWorldCoords.
+					if( pathSegmentLengthInWorldCoords - stepSizeInWorldCoords > -m_Epsilon )
+					{
+						// Traverse in the forward direction starting from the start
+						// of the path.
+						TraverseDistanceInWorldCoords(this->StartOfInput(),
+																					image,
+																					pathSegmentLengthInWorldCoords,
+																					true,
+																					pathSegmentEndPoint,
+																					traversedDistance);
+						
+						Pointer pathSegment = Self::New();
+						SubPath(this->StartOfInput(), pathSegmentEndPoint, pathSegment);
+						pathSegmentArray.push_back(pathSegment);
+					}
+					
+					break;
+				}
+				
+				// Create the path segment and add it to the list.
+				Pointer pathSegment = Self::New();
+				SubPath(pathSegmentStartPoint, i, pathSegment);
+				pathSegmentArray.push_back(pathSegment);
+				
+				// Get the end point for the next segment by traversing step 
+				// size along the path in the backward direction.
+				if( !TraverseDistanceInWorldCoords(i,
+																					 image,
+																					 stepSizeInWorldCoords,
+																					 false,
+																					 i,
+																					 traversedDistance) )
+				{
+					break;
+				}
+			}
+			// Reverse the array to get the correct ordering of segments.
+			std::reverse(pathSegmentArray.begin(), pathSegmentArray.end());
+			
+			
+			// Determine the start point for starting from the middle and going in the 
+			// forward direction. The first segment will NOT be centralized at the middle 
+			// of the path, since such a segment has already been extracted before.
+			i = 0.5*(this->EndOfInput() - this->StartOfInput());
+			TraverseDistanceInWorldCoords(i,
+																		image,
+																		0.5 * pathSegmentLengthInWorldCoords,
+																		false,
+																		i,
+																		traversedDistance);
+			
+			if( TraverseDistanceInWorldCoords(i,
+																				image,
+																				stepSizeInWorldCoords,
+																				true,
+																				i,
+																				traversedDistance) )
+			{
+				// Now traverse in the forward direction.
+				while((this->EndOfInput() - i)  > m_Epsilon)
+				{
+					// Get the end point of the current path segment.
+					if( !TraverseDistanceInWorldCoords(i,
+																						 image,
+																						 pathSegmentLengthInWorldCoords,
+																						 true,
+																						 pathSegmentEndPoint,
+																						 traversedDistance) )
+					{
+						// At this point, we reach end of the path!
+						
+						// If segment length is larger than the step size, try to span the 
+						// tail of the path so that we cover the path entirely, while 
+						// keeping the length of the last segment at 
+						// pathSegmentLengthInWorldCoords.
+						if( pathSegmentLengthInWorldCoords - stepSizeInWorldCoords > -m_Epsilon )
+						{
+							// Traverse in the backward direction starting from the end
+							// of the path.
+							TraverseDistanceInWorldCoords(this->EndOfInput(),
+																						image,
+																						pathSegmentLengthInWorldCoords,
+																						false,
+																						pathSegmentStartPoint,
+																						traversedDistance);
+							
+							Pointer pathSegment = Self::New();
+							SubPath(pathSegmentStartPoint, this->EndOfInput(), pathSegment);
+							pathSegmentArray.push_back(pathSegment);
+						}
+						
+						break;
+					}
+					
+					// Create the path segment and add it to the list.
+					Pointer pathSegment = Self::New();
+					SubPath(i, pathSegmentEndPoint, pathSegment);
+					pathSegmentArray.push_back(pathSegment);
+					
+					// Get the start point for the next segment by traversing step 
+					// size along the path in the forward direction.
+					if( !TraverseDistanceInWorldCoords(i,
+																						 image,
+																						 stepSizeInWorldCoords,
+																						 true,
+																						 i,
+																						 traversedDistance) )
+					{
+						break;
+					}
+				}
+			}
+			
+		}
+		
+		
+		
+		
+		
 		// Returns true if the specified distance has been sucessfully traversed
 		// without prematurely hitting the end point of the path.
 		template<class TImage>
 		bool TraverseDistanceInWorldCoords(InputType startPoint,
 																			 const TImage* image,
 																			 double distInWorldCoords,
-																			 bool traverseForward = true,
-																			 InputType& endPoint = 0,
-																			 double& traversedDistance = 0) const
+																			 bool traverseForward,
+																			 InputType& endPoint,
+																			 double& traversedDistance) const
 		{
 			if( distInWorldCoords <= 0 )
 			{
-				itkExceptionMacro("Distance to traverse can not smaller than or equal to zero.");
+				itkExceptionMacro("Distance to traverse can not be smaller than or equal to zero.");
 			}
 			
+			traversedDistance = 0.0;
 			InputType increment;
 			if( traverseForward )
 			{
@@ -1006,7 +1550,6 @@ namespace itk
 				
 				if( startPoint >= this->EndOfInput() )
 				{
-					traversedDistance = 0;
 					endPoint = this->EndOfInput();
 					return false;
 				}
@@ -1022,14 +1565,11 @@ namespace itk
 				
 				if( startPoint <= this->StartOfInput() )
 				{
-					traversedDistance = 0;
 					endPoint = this->StartOfInput();
 					return false;
 				}
 			}
 
-			
-			traversedDistance = 0;
 			InputType currentPoint = startPoint;
 			InputType nextPoint;
 			if( traverseForward )
@@ -1038,16 +1578,9 @@ namespace itk
 			}
 			else
 			{
-				if( IsIntegerInput(startPoint) )
-				{
-					nextPoint = (InputType)(((unsigned long)startPoint) - 1);
-				}
-				else
-				{
-					nextPoint = (InputType)(((unsigned long)startPoint));
-				}
+				nextPoint = (InputType)(((unsigned long)startPoint));
 			}
-			while(vcl_fabs(distInWorldCoords - traversedDistance) > NumericTraits<double>::epsilon())
+			while(vcl_fabs(distInWorldCoords - traversedDistance) > m_Epsilon)
 			{
 				double currentDistBtwSuccPoints = GetDistanceInWorldCoords(currentPoint, 
 																																	 nextPoint, 
@@ -1074,14 +1607,14 @@ namespace itk
 				// Did we reach end of the path.
 				if( traverseForward )
 				{
-					if( vcl_fabs(nextPoint - this->EndOfInput()) < NumericTraits<InputType>::epsilon() )
+					if( vcl_fabs(nextPoint - this->EndOfInput()) < m_Epsilon )
 					{
 						return false;
 					}
 				}
 				else
 				{
-					if( vcl_fabs(nextPoint - this->StartOfInput()) < NumericTraits<InputType>::epsilon() )
+					if( vcl_fabs(nextPoint - this->StartOfInput()) < m_Epsilon )
 					{
 						return false;
 					}
@@ -1094,14 +1627,6 @@ namespace itk
 			
 			return true;
 		}
-
-		
-		// TODO Call this function in all functions of this class. (search for the occurance of epsilon)
-		virtual bool IsIntegerInput(InputType input) const
-		{
-			return vcl_fabs(input - Math::Round<InputType>(input)) < NumericTraits<InputType>::epsilon();
-		}
-		
 		
 		virtual OffsetType IncrementInput(InputType & input) const;
 		
@@ -1118,23 +1643,103 @@ namespace itk
 	
 		itkGetConstObjectMacro( VertexList, VertexListType );
 		
+		virtual unsigned long GetNumberOfVertices()
+		{
+			return static_cast<unsigned long>(m_VertexList->Size());
+		}
+		
+		
+		// TODO Add an EraseVertex() function.
+		
+		virtual bool InsertVertex(typename VertexListType::ElementIdentifier vertexIndex, 
+															const VertexType& vertex,
+															RadiusType radius)
+		{
+			if( (vertexIndex < 0) && (vertexIndex > m_VertexList->Size()) )
+			{
+				itkExceptionMacro(<<"Insertion index is out of bounds.");
+			}
+			
+			// Check if the given vertex is close to its neighbors in the given 
+			// position of the list and if so, do not insert it.
+			if( vertexIndex > 0 )
+			{
+				const VertexType& prevVertex = m_VertexList->ElementAt(vertexIndex - 1);
+				
+				if( vertex.SquaredEuclideanDistanceTo(prevVertex) <  m_Epsilon )
+				{
+					return false;
+				}
+			}
+			if( vertexIndex < m_VertexList->Size() )
+			{
+				const VertexType& nextVertex = m_VertexList->ElementAt(vertexIndex);
+				
+				if( vertex.SquaredEuclideanDistanceTo(nextVertex) <  m_Epsilon )
+				{
+					return  false;
+				}
+			}
+			
+			// TODO The below call to CastToSTLContainer() requires dynamic 
+			// cast, which is costly. You can avoid this by replacing the 
+			// VectorContainer type for the vertex list by std::vector<VertexType>.
+			typename std::vector<VertexType>::size_type insertLoc = vertexIndex;
+			std::vector<VertexType>& vertexList = m_VertexList->CastToSTLContainer();
+			vertexList.insert(vertexList.begin() + insertLoc, vertex);
+			m_RadiusList.insert(m_RadiusList.begin() + insertLoc, radius);
+			
+			return true;
+		}
+		
 		virtual VertexType GetVertex(typename VertexListType::ElementIdentifier vertexIndex) const
 		{
-			if( (vertexIndex < 0) && (vertexIndex >= m_VertexList->Size()) )
-			{
-				itkExceptionMacro(<<"Vertex index is out of bounds.");
-			}
+			VertexIndexBoundCheck(vertexIndex);
 			return m_VertexList->ElementAt(vertexIndex);
 		}
 		
-		virtual void SetVertex(typename VertexListType::ElementIdentifier vertexIndex, 
-													 VertexType vertex)
+		virtual bool SetVertex(typename VertexListType::ElementIdentifier vertexIndex, 
+													 const VertexType& vertex)
 		{
-			if( (vertexIndex < 0) && (vertexIndex >= m_VertexList->Size()) )
+			VertexIndexBoundCheck(vertexIndex);
+		
+			// Check if the given vertex is close to its neighbors in the given 
+			// position of the list and if so, do not set it.
+			if( vertexIndex > 0 )
 			{
-				itkExceptionMacro(<<"Vertex index is out of bounds.");
+				const VertexType& prevVertex = m_VertexList->ElementAt(vertexIndex - 1);
+				
+				if( vertex.SquaredEuclideanDistanceTo(prevVertex) <  m_Epsilon )
+				{
+					return false;
+				}
 			}
+			if( (vertexIndex + 1) < m_VertexList->Size() )
+			{
+				const VertexType& nextVertex = m_VertexList->ElementAt(vertexIndex + 1);
+				
+				if( vertex.SquaredEuclideanDistanceTo(nextVertex) <  m_Epsilon )
+				{
+					return false;
+				}
+			}
+			
 			m_VertexList->ElementAt(vertexIndex) = vertex;
+			
+			return true;
+		}
+		
+		virtual bool SetVertex(typename VertexListType::ElementIdentifier vertexIndex, 
+														const VertexType& vertex, 
+														RadiusType radius)
+		{
+			if( !SetVertex(vertexIndex, vertex) )
+			{
+				return false;
+			}
+			
+			SetVertexRadius(vertexIndex, radius);
+			return true;
 		}
 		
 		virtual const RadiusListType& GetRadiusList() const
@@ -1144,27 +1749,31 @@ namespace itk
 		
 		virtual RadiusType GetVertexRadius(typename RadiusListType::size_type vertexIndex) const
 		{
-			if( (vertexIndex < 0) && (vertexIndex >= m_RadiusList.size()) )
-			{
-				itkExceptionMacro(<<"Vertex index is out of bounds.");
-			}
+			VertexIndexBoundCheck(vertexIndex);
 			return m_RadiusList[vertexIndex];
 		}
 		
 		virtual void SetVertexRadius(typename RadiusListType::size_type vertexIndex, 
 																 RadiusType radius)
 		{
-			if( (vertexIndex < 0) && (vertexIndex >= m_RadiusList.size()) )
-			{
-				itkExceptionMacro(<<"Vertex index is out of bounds.");
-			}
+			VertexIndexBoundCheck(vertexIndex);
 			m_RadiusList[vertexIndex] = radius;
 		}
 		
-		unsigned int GetEffectiveDimension()
+		virtual unsigned int GetEffectiveDimension() const
 		{
 			return m_EffectiveDimension;
 		}
+		
+		virtual double GetEpsilon() const
+		{
+			return m_Epsilon;
+		}
+		virtual void SetEpsilon(double eps)
+		{
+			m_Epsilon = eps;
+		}
+		
 		
 		// TODO HACK Store the full feature vector for this path here! 
 		itk::Array<float> m_FeatureVector;
@@ -1173,6 +1782,14 @@ namespace itk
 		PolyLineParametricPathExtended();
 		virtual ~PolyLineParametricPathExtended(){}
 		virtual void PrintSelf(std::ostream& os, Indent indent) const;
+		
+		virtual void VertexIndexBoundCheck(typename VertexListType::ElementIdentifier vertexIndex) const
+		{
+			if( (vertexIndex < 0) && (vertexIndex >= m_VertexList->Size()) )
+			{
+				itkExceptionMacro(<<"Vertex index is out of bounds.");
+			}
+		}
 		
 	private:
 		PolyLineParametricPathExtended(const Self&); //purposely not implemented
@@ -1187,11 +1804,32 @@ namespace itk
 														 InputType& minDistPoint) const;	// takes values between 0 (start vertex) and 1 (end vertex).
 		
 		
+		// Check if a given point is in the tail region. 
+		// A tail region for an end point of the path is 
+		// represented as a hemisphere in world coordinate system.
+		// No radius check is performed in this method.
+		template <class TImage>
+		bool
+		IsPointInTailRegion(const PointType& point, 
+												const InputType& closestPathInput,
+												const TImage* image) const;
+		
+		/** Smooths the vertex locations and radius values. */
 		template<class TImage>
-		void OverlayFromNeighIter(typename TImage::RegionType& regionForBoundCheck, 
-															typename TImage::PixelType overlayVal,
+		void Smooth(double avgWindowRadiusInWorldCoords,
+								const TImage* image,
+								bool smoothLocations,
+								bool smoothRadii);
+		
+		
+		template<class TImage>
+		void OverlayFromNeighIter(typename TImage::PixelType overlayVal,
 															ShapedNeighborhoodIterator<TImage>& iter,
 															const Image<bool, TImage::ImageDimension>* binaryMap = 0) const;
+		
+		void ComputeBoundingImageRegionFromVertexList(const VertexListType* vertexList,
+																									ImageRegionType& region) const;
+			
 		
 		friend class boost::serialization::access;
 		BOOST_SERIALIZATION_SPLIT_MEMBER()
@@ -1260,6 +1898,8 @@ namespace itk
 		
 		
 		unsigned int				m_EffectiveDimension; // Effective dimension read from the file.
+		
+		double							m_Epsilon;		// TODO INclude this in the serialization!
 	};
 	
 }

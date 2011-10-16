@@ -31,7 +31,7 @@ namespace itk
 		m_CurrentOutput = 0;
 		m_Interpolator = InterpolatorType::New();
 		m_Step = 1;
-		m_NbMaxIter = 5000;
+		m_NbMaxIter = 50000;
 	}
 	
 	
@@ -161,65 +161,123 @@ namespace itk
 
 		ContinuousIndexType cindexBefore = cindex;
 
-		bool isOutOfDomain  = false;
+		bool isInsideDomain  = true;
 		for (unsigned int d = 0; d < SetDimension; d++) 
 		{
 			if (cindex[d] < m_StartIndex[d]) 
 			{
 				cindex[d] = m_StartIndex[d];
-				isOutOfDomain = true;
+				isInsideDomain = false;
 			}
 					
 			if (cindex[d] > m_LastIndex[d]) 
 			{
 				cindex[d] = m_LastIndex[d];
-				isOutOfDomain = true;
+				isInsideDomain = false;
 			}
 		}
-		return isOutOfDomain;
+		return isInsideDomain;
+	}
+	
+	/**
+	 * make one single discrete descent step
+	 */
+	template <class TInputImage, class TOutputPath>
+	void
+	RK4CharacteristicDirectionsToPathFilter<TInputImage,TOutputPath>
+	::MakeDiscreteDescentStep(ContinuousIndexType currentIndex, ContinuousIndexType& nextIndex)
+	{
+		IndexType index;
+		for(unsigned int d = 0; d < SetDimension; d++)
+		{
+			index[d] = floor(currentIndex[d]);
+		}
+		
+		RadiusType radius;
+		radius.Fill(1);
+		NeighborhoodIterator it(radius, m_Distance, m_Distance->GetRequestedRegion());
+			
+		IndexType newPosition = index;
+		double bestValue = m_Distance->GetPixel( index );
+		it.SetLocation( index );
+		for(unsigned int i = 0; i < it.Size(); ++i)
+		{
+			IndexType neighborPosition = it.GetIndex(i);
+			
+			bool isNeighborInsideRegion = true;
+			
+			for (unsigned int d = 0; d < SetDimension; d++)
+			{
+				if (neighborPosition[d] < m_StartIndex[d]) 
+				{
+					isNeighborInsideRegion = false;
+					continue;
+				}
+				if (neighborPosition[d] > m_LastIndex[d]) 
+				{
+					isNeighborInsideRegion = false;
+					continue;
+				}
+			}
+			if ( isNeighborInsideRegion ) 
+			{
+				double neighborValue = m_Distance->GetPixel( neighborPosition );
+				if( neighborValue < bestValue )
+				{
+					bestValue = neighborValue;
+					newPosition = neighborPosition;
+				}
+			}
+		}
+			index  = newPosition;
+			m_Distance->TransformIndexToPhysicalPoint( index, nextIndex );
 	}
 	
 	
 	/**
-	 *
+	 * Hybrid descent, combining Runge-Kutta and discrete descente
 	 */
 	template <class TInputImage, class TOutputPath>
 	void
 	RK4CharacteristicDirectionsToPathFilter<TInputImage,TOutputPath>
 	::GenerateData( void )
 	{
-	
-		// Get the input
+		/**  Get the input */
 		InputImagePointer input = 
     const_cast< InputImageType * >( this->GetInput() );
 		
-		// cache some buffered region information
+		/**  cache some buffered region information */
 		m_StartIndex = input->GetRequestedRegion().GetIndex();
 		m_LastIndex = m_StartIndex + input->GetRequestedRegion().GetSize();
 		typename InputImageType::OffsetType offset;
 		offset.Fill( 1 );
 		m_LastIndex -= offset;
 		
-		
-		
+		/**  Check that the input images have been given */
 		if ( input.IsNull() )
 		{
-			itkExceptionMacro( "Input image must be provided" );
+			itkExceptionMacro( "Input Gradient image must be provided" );
 			return;
 		}
 		
-		// Check the number of paths is not none
+		if ( m_Distance.IsNull() )
+		{
+			itkExceptionMacro( "Input distnace image must be provided" );
+			return;
+		}
+		
+		/** Check the number of paths is not zero */
 		unsigned int numberOfOutputs = GetNumberOfPathsToExtract();
 		if ( numberOfOutputs == 0 )
     {
-			itkExceptionMacro( "At least one path must be specified for extraction" );
+			itkExceptionMacro( "At least one endpoint path must be specified for extraction" );
     }
 		this->ProcessObject::SetNumberOfRequiredOutputs( numberOfOutputs );
 		
-		// Set the interpolator input
+		/** Set the interpolator input */
 		m_Interpolator->SetInputImage( this->GetInput() );
 		
-		// Do for each output
+		// For loop for each output (each endpoint)
 		for ( unsigned int n=0; n < numberOfOutputs; n++ )
     {
 			// Set the output	index
@@ -233,6 +291,7 @@ namespace itk
 			
 			// Get the end point to back propagate from
 			PointType currentPoint = this->GetNextEndPoint();
+			// dist2source keeps track of the distance from the current point to the source point
 			double dist2source = 0;
 			for(unsigned int d = 0; d < SetDimension; d++)
 			{
@@ -240,32 +299,44 @@ namespace itk
 			}
 			dist2source = sqrt(dist2source);
 			
-			
 			unsigned int count = 0;
 			
-			//TODO : Add Oscialltion checker and get rid of it
+			double lowLimit = itk::NumericTraits<ValuePixelType>::epsilon();
 			
+			// The main loop for the descent starts here
 			while (dist2source > m_TerminationDistance && count < m_NbMaxIter) {
 				
 				// Convert currentPoint to continuous index
 				ContinuousIndexType cindex;
 				input->TransformPhysicalPointToContinuousIndex( currentPoint, cindex );
 				
-				IsCurrentPointInsideTheDomain( cindex );
 				// Check that the new position is inside the image domain
-				bool isCurrentPointInImageDomain = m_Interpolator->IsInsideBuffer( cindex );
-				if ( !isCurrentPointInImageDomain ) 
-				{
-					itkExceptionMacro("Point out of image domain: should not happen");
-				}
+				IsCurrentPointInsideTheDomain( cindex );
+				/*{ TODO
+					itkWarningMacro("current point was outside domain, index values saturated to keep them inside the domain");
+					std::cout << "after saturation, index location is is located at: " << cindex << std::endl;
+				}*/
 				
 				// Add point as vertex in path
 				output->AddVertex( cindex );
 				
-				//Get the steepest descent direction
+				//==================================================================================================
+				// start the order 4  Runge-Kutta descent step
+				//==================================================================================================
+				bool gradientIsZero = false;
+				// Get the steepest descent direction
+				
+				// compute the first intermediate location k1
 				VectorType k1 = m_Interpolator->EvaluateAtContinuousIndex(cindex);
 				VectorType k1Normalized = k1;
-				k1Normalized.Normalize();
+				if ( k1.GetNorm() > lowLimit ) 
+				{ 
+					k1Normalized.Normalize();
+				}
+				else
+				{
+					gradientIsZero = true;
+				}
 				
 				PointType k1Point;
 				for (unsigned int d = 0; d < SetDimension; d++)
@@ -275,18 +346,20 @@ namespace itk
 				
 				ContinuousIndexType k1CIndex;
 				input->TransformPhysicalPointToContinuousIndex( k1Point, k1CIndex );
-				
+				// Check that the intermediate location k1CIndex is inside the domain
 				IsCurrentPointInsideTheDomain( k1CIndex );
-				// Check that the new position is inside the image domain
-				isCurrentPointInImageDomain = m_Interpolator->IsInsideBuffer( k1CIndex );
-				if ( !isCurrentPointInImageDomain ) 
-				{
-					itkExceptionMacro("Point out of image domain: should not happen");
-				}
 				
+				// compute the second intermediate location k2
 				VectorType k2 = m_Interpolator->EvaluateAtContinuousIndex( k1CIndex );
 				VectorType k2Normalized = k2;
-				k2Normalized.Normalize();
+				if ( k2.GetNorm() > lowLimit ) 
+				{ 
+					k2Normalized.Normalize();
+				}
+				else
+				{
+					gradientIsZero = true;
+				}
 				
 				PointType k2Point;
 				for (unsigned int d = 0; d < SetDimension; d++)
@@ -296,18 +369,20 @@ namespace itk
 				
 				ContinuousIndexType k2CIndex;
 				input->TransformPhysicalPointToContinuousIndex( k2Point, k2CIndex );
+				// Check that the intermediate location k2CIndex is inside the domain
+				IsCurrentPointInsideTheDomain( k2CIndex ); 
 				
-				IsCurrentPointInsideTheDomain( k2CIndex );
-				// Check that the new position is inside the image domain
-				isCurrentPointInImageDomain = m_Interpolator->IsInsideBuffer( k2CIndex );
-				if ( !isCurrentPointInImageDomain ) 
-				{
-					itkExceptionMacro("Point out of image domain: should not happen");
-				}
-				
+				// compute the third intermediate location k3
 				VectorType k3 = m_Interpolator->EvaluateAtContinuousIndex( k2CIndex );
 				VectorType k3Normalized = k3;
-				k3Normalized.Normalize();
+				if ( k3.GetNorm() > lowLimit ) 
+				{ 
+					k3Normalized.Normalize();
+				}
+				else
+				{
+					gradientIsZero = true;
+				}
 				
 				PointType k3Point;
 				for (unsigned int d = 0; d < SetDimension; d++)
@@ -318,33 +393,78 @@ namespace itk
 				ContinuousIndexType k3CIndex;
 				input->TransformPhysicalPointToContinuousIndex( k3Point, k3CIndex );
 				
+				// Check that the intermediate location k3CIndex is inside the domain
 				IsCurrentPointInsideTheDomain( k3CIndex );
-				// Check that the new position is inside the image domain
-				isCurrentPointInImageDomain = m_Interpolator->IsInsideBuffer( k3CIndex );
-				if ( !isCurrentPointInImageDomain ) 
-				{
-					itkExceptionMacro("Point out of image domain: should not happen");
-				}
-				
+				// compute the fourth intermediate location k4
 				VectorType k4 = m_Interpolator->EvaluateAtContinuousIndex( k3CIndex );
-				
-				//VectorType slope = (k1 + 2.0*k2 +2.0*k3 + k4) / 6.0;
+				// compute the final slope
 				VectorType slope = (k1 + (k2*2.0) + (k3*2.0) + k4) / 6.0;
-				slope.Normalize();
-				
-				//Compute next point
-				for (unsigned int d = 0; d < SetDimension; d++) 
+				if ( slope.GetNorm() > lowLimit ) 
+				{ 
+					slope.Normalize();
+				}
+				else
 				{
-					currentPoint[d] = currentPoint[d] - m_Step*slope[d];
+					gradientIsZero = true;
 				}
 				
-				// Update the fucking distance to the source
+				//If the slope is not zero
+				if(!gradientIsZero)
+				{ // that means that the slope of Runge Kutta descent was not zero
+					// Does not guarantee non oscillations
+					for (unsigned int d = 0; d < SetDimension; d++) 
+					{
+						currentPoint[d] = currentPoint[d] - m_Step*slope[d];
+					}
+				}
+				else
+				{  // the final slope or one of the intermediate gradients is zero
+					 // The used precision is not enough
+					 // In that case, we just take the best point among neighboors, using the distance (objective map) values
+					itkWarningMacro("Gradient is null at this point, this's likely due to a precision issue, current descent step will be done discreetly ");
+					ContinuousIndexType nextCIndex;
+					this->MakeDiscreteDescentStep(cindex, nextCIndex);
+					cindex = nextCIndex;
+					input->TransformContinuousIndexToPhysicalPoint( cindex, currentPoint );
+				}
+
+				// Update the distance to the source
 				dist2source = 0;
 				for(unsigned int d = 0; d < SetDimension; d++)
 				{
 					dist2source += (currentPoint[d] - m_StartPoint[d])*(currentPoint[d] - m_StartPoint[d]);
 				}
 				dist2source = sqrt(dist2source);
+				
+				// Check for osciallations, by computing the distance of the latest point to the latest 3 points
+				bool isOscillating = false;
+				if (count >= 3) 
+				{
+					for (unsigned int i = 0; i < 3; i++) 
+					{
+						// compute the distance from the latest point to the latest 3 added points.
+						double distanceToPrevious = 0;
+						ContinuousIndexType prevCIndex = output->GetVertexList()->GetElement(count-1-i);
+						for(unsigned int d= 0; d < SetDimension; d++)
+						{
+							distanceToPrevious += (prevCIndex[d] - cindex[d])*(prevCIndex[d] - cindex[d]);
+						}
+						distanceToPrevious = sqrt(distanceToPrevious);
+						if(distanceToPrevious < 0.001)// TODO: improve the criterion
+						{
+							isOscillating = true;
+						}
+					}
+				}
+				if( isOscillating )
+				{  // path is oscillating
+					itkWarningMacro("Path is osciallating, current descent step will be done discreetly ");
+					ContinuousIndexType nextCIndex;
+					this->MakeDiscreteDescentStep(cindex, nextCIndex);
+					cindex = nextCIndex;
+					input->TransformContinuousIndexToPhysicalPoint( cindex, currentPoint );
+				}
+				
 				count++;
 			}
 			
@@ -353,17 +473,14 @@ namespace itk
 				itkWarningMacro("Start point not reached, increase number of iterations");
 			}
 			
-			// Convert currentPoint to continuous index
+			// adding the last point 
 			ContinuousIndexType cindex;
 			input->TransformPhysicalPointToContinuousIndex( m_StartPoint, cindex );
 			
-			
-			IsCurrentPointInsideTheDomain( cindex );
-			// Check that the new position is inside the image domain
-			bool isCurrentPointInImageDomain = m_Interpolator->IsInsideBuffer( cindex );
-			if ( !isCurrentPointInImageDomain ) 
+			if ( !IsCurrentPointInsideTheDomain( cindex ) ) 
 			{
-				itkExceptionMacro("Point out of image domain: should not happen");
+				itkWarningMacro("current point was outside domain, index values saturated to keep them inside the domain");
+				std::cout << "after saturation, cindex location is is located at: " << cindex << std::endl;
 			}
 			// Add point as vertex in path
 			output->AddVertex( cindex );

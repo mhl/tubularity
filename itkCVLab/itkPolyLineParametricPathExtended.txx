@@ -325,7 +325,7 @@ namespace itk
 	{
 		if( (path1 == 0) && (path2 == 0) )
 		{
-			itkWarningMacro(<<"Both paths are null. Nothing will be done.");
+			itkExceptionMacro(<<"Both paths are null.");
 		}
 		
 		if( path1 != 0 )
@@ -338,18 +338,16 @@ namespace itk
 			path2->Initialize();
 		}
 		
-		if( splitPoint <= this->StartOfInput() )
+		if( (splitPoint - this->StartOfInput()) < m_Epsilon )
 		{
-			itkWarningMacro(<<"Split point is smaller than or equal to StartOfInput()"
-											<<" The first path will include only the first vertex on the path.");
-											
+			// Split point is smaller than or equal to StartOfInput()
+			// The first path will include only the first vertex on the path.											
 			splitPoint = this->StartOfInput();
 		}
-		if( splitPoint >= this->EndOfInput() )
+		if( (this->EndOfInput() - splitPoint) < m_Epsilon )
 		{
-			itkWarningMacro(<<"Split point is greater than or equal to EndOfInput()"
-											<<" The first path will include only the last vertex on the path.");
-											
+			// Split point is greater than or equal to EndOfInput()
+			// The first path will include only the last vertex on the path.
 			splitPoint = this->EndOfInput();
 		}
 	
@@ -363,7 +361,7 @@ namespace itk
 			}
 			
 			if(vcl_fabs(((InputType)splitIndex) - (splitPoint - this->StartOfInput())) >
-				 NumericTraits<InputType>::epsilon() )
+				 m_Epsilon )
 			{
 				path1->AddVertex( this->Evaluate(splitPoint), this->EvaluateRadius(splitPoint) );
 			}
@@ -372,7 +370,7 @@ namespace itk
 		if( path2 != 0 )
 		{
 			// Path1 and path 2 share the middle point.
-			path2->AddVertex( this->Evaluate(splitPoint) );
+			path2->AddVertex( this->Evaluate(splitPoint), this->EvaluateRadius(splitPoint) );
 			for(unsigned long j = splitIndex+1; j < m_VertexList->Size(); j++)
 			{
 				path2->AddVertex( m_VertexList->ElementAt(j), m_RadiusList[j] );
@@ -421,6 +419,9 @@ namespace itk
 		
 		if( startPoint > endPoint )
 		{
+			// TODO Delete this check and even the whole if statement.
+			itkWarningMacro(<<"start point is smaller than the ene point: "<< startPoint<< " " << endPoint);
+			
 			std::swap(startPoint, endPoint);
 		}
 		
@@ -443,27 +444,34 @@ namespace itk
 			endPoint = this->EndOfInput();
 		}
 		
-		if( vcl_fabs(startPoint - endPoint) < NumericTraits<InputType>::epsilon() )
+		// TODO Delete this check whenever it becomes annoying since it fills the console.
+		if( vcl_fabs(startPoint - endPoint) < m_Epsilon )
 		{
-			itkWarningMacro(<<"Start and end points are the same. "
+			itkWarningMacro(<<"Start and end points are the same: " 
+											<< startPoint
 											<<" The extracted path will include only one vertex.");
 		}
 		
-		path->AddVertex( this->Evaluate(startPoint), this->EvaluateRadius(startPoint) );
-		
 		unsigned long startIndex = static_cast<unsigned long>(startPoint - this->StartOfInput()) + 1;
-		
 		unsigned long endIndex = static_cast<unsigned long>(endPoint - this->StartOfInput());
-
+		if( (static_cast<InputType>(startIndex) - startPoint) < m_Epsilon )
+		{
+			startIndex++;
+		}
+		if( (endPoint - static_cast<InputType>(endIndex)) < m_Epsilon )
+		{
+			if( endIndex != 0 )
+			{
+				endIndex--;
+			}
+		}
+		
+		path->AddVertex( this->Evaluate(startPoint), this->EvaluateRadius(startPoint) );
 		for(unsigned long j = startIndex; j <= endIndex; j++)
 		{
 			path->AddVertex( m_VertexList->ElementAt(j), m_RadiusList[j] );
 		}
-		
-		if( !IsIntegerInput(endPoint) )
-		{
-			path->AddVertex( this->Evaluate(endPoint), this->EvaluateRadius(endPoint) );
-		}
+		path->AddVertex( this->Evaluate(endPoint), this->EvaluateRadius(endPoint) );
 	}
 	
 	
@@ -504,16 +512,10 @@ namespace itk
 			{
 				VertexType vertex = m_VertexList->ElementAt(i);
 
-				bool isEqual = true;
-				for(unsigned int j = 0; j < VDimension; j++)
-				{
-					// Check if the two vertices are the same.
-					if( vcl_fabs(prevVertex[j] - vertex[j]) > NumericTraits<double>::epsilon() )
-					{
-						isEqual = false;
-						break;
-					}
-				}
+				// Check if the two vertices are the same.
+				bool isEqual = 
+				(vertex.SquaredEuclideanDistanceTo( prevVertex ) < 
+				 m_Epsilon);
 				
 				if( !isEqual )
 				{
@@ -526,55 +528,299 @@ namespace itk
 			m_VertexList = newVertexList;
 		}
 	}
+	
+	
+	template <unsigned int VDimension>
+	template<class TImage>
+	void 
+	PolyLineParametricPathExtended<VDimension>::
+	Resample(double stepInWorldCoords, const TImage* image)
+	{
+		if( m_VertexList->Size() < 2 )
+		{
+			return;
+		}
+	
+		Pointer clone = this->Clone();
+		this->Initialize(); // clears the vertex and radius lists.
+		
+		// Add the first vertex.
+		this->AddVertex(clone->GetVertexList()->ElementAt(0), 
+										clone->GetRadiusList()[0]);
+		
+		// Resample the rest.
+		bool endReached = false;
+		InputType currentPos = clone->StartOfInput();
+		InputType nextPos;
+		double traversedDistance; // dummy
+		while( !endReached )
+		{
+			endReached = 
+			!(clone->TraverseDistanceInWorldCoords(currentPos,
+																						 image,
+																						 stepInWorldCoords,
+																						 true,
+																						 nextPos,
+																						 traversedDistance));
+			if( !endReached )
+			{
+				this->AddVertex(clone->Evaluate(nextPos),
+												clone->EvaluateRadius(nextPos));
+			}
+			
+			currentPos = nextPos;
+		}
+		
+		// Add the last vertex.
+		this->AddVertex(clone->GetVertexList()->ElementAt(clone->GetVertexList()->Size()-1), 
+										clone->GetRadiusList().back());
+	}
+	
+	/** Smooths the vertex locations and the radius values. */
+	template <unsigned int VDimension>
+	template<class TImage>
+	void 
+	PolyLineParametricPathExtended<VDimension>::	
+	SmoothVertexLocationsAndRadii(double avgWindowRadiusInWorldCoords,
+																const TImage* image)
+	{
+		Smooth(avgWindowRadiusInWorldCoords, image, true, true);
+	}
+	
+	/** Smooths the vertex locations. */
+	template <unsigned int VDimension>
+	template<class TImage>
+	void 
+	PolyLineParametricPathExtended<VDimension>::	
+	SmoothVertexLocations(double avgWindowRadiusInWorldCoords,
+												const TImage* image)
+	{
+		Smooth(avgWindowRadiusInWorldCoords, image, true, false);
+	}
+	
+	/** Smooths the radius values along the path. */
+	template <unsigned int VDimension>
+	template<class TImage>
+	void 
+	PolyLineParametricPathExtended<VDimension>::	
+	SmoothRadiusValues(double avgWindowRadiusInWorldCoords,
+										 const TImage* image)
+	{
+		Smooth(avgWindowRadiusInWorldCoords, image, false, true);
+	}
+	
+	/** Smooths the vertex locations. */
+	template <unsigned int VDimension>
+	template<class TImage>
+	void 
+	PolyLineParametricPathExtended<VDimension>::	
+	Smooth(double avgWindowRadiusInWorldCoords,
+				 const TImage* image,
+				 bool smoothLocations,
+				 bool smoothRadii)
+	{
+		if( (!smoothLocations) && (!smoothRadii) )	
+		{
+			return;
+		}
+		
+		Pointer clone = this->Clone();
+		
+		// Visit and smooth all the vertices except the first and the last one.
+		for(typename VertexListType::ElementIdentifier i = 1; 
+				(i+1) < m_VertexList->Size(); 
+				i++)
+		{
+			double backDistance;
+			InputType backPoint;
+			double forwardDistance;
+			InputType forwardPoint;
+			
+			clone->TraverseDistanceInWorldCoords(i,
+																					 image,
+																					 avgWindowRadiusInWorldCoords,
+																					 false,
+																					 backPoint,
+																					 backDistance);
+			
+			clone->TraverseDistanceInWorldCoords(i,
+																					 image,
+																					 avgWindowRadiusInWorldCoords,
+																					 true,
+																					 forwardPoint,
+																					 forwardDistance);
+			
+			if(vcl_fabs(backDistance - forwardDistance) > m_Epsilon)
+			{
+				if(backDistance < forwardDistance)
+				{
+					clone->TraverseDistanceInWorldCoords(i,
+																							 image,
+																							 backDistance,
+																							 true,
+																							 forwardPoint,
+																							 forwardDistance);
+				}
+				else
+				{
+					clone->TraverseDistanceInWorldCoords(i,
+																							 image,
+																							 forwardDistance,
+																							 false,
+																							 backPoint,
+																							 backDistance);
+				}
+			}
+			
+			// Extract the segment for the moving average window.
+			Pointer segment = Self::New();
+			clone->SubPath(backPoint, forwardPoint, segment);
+			
+			if( smoothLocations )
+			{
+				// Compute the centroid location of the segment and set it as 
+				// the new path vertex.
+				m_VertexList->SetElement(i, segment->ComputeCentroidVertex(image));
+			}
+			
+			if( smoothRadii )
+			{
+				// Compute the centroid radius of the segment and set it as 
+				// the new radius.
+				m_RadiusList[i] = segment->ComputeCentroidRadius(image);
+			}
+		}
+	}
+
 
 	template <unsigned int VDimension>
 	typename PolyLineParametricPathExtended<VDimension>::ImageRegionType 
 	PolyLineParametricPathExtended<VDimension>::	
-	ComputeBoundingImageRegion() const
+	ComputeBoundingImageRegionWithoutRadius() const
 	{
-		typedef BoundingBox<typename VertexListType::ElementIdentifier,
-		Dimension, typename VertexType::CoordRepType, VertexListType> BoundingBoxType;
-		
 		ImageRegionType imageRegion;
-		IndexType				regionStartIndex;
-		IndexType				regionEndIndex;
-		SizeType				regionSize;
-		OffsetType			regionOffset;
 		
-		if( m_VertexList->Size() == 0 )
-		{
-			regionStartIndex.Fill( 0 );
-			regionSize.Fill( 0 );
-		}
-		else
-		{
-			// Compute the bounding box of the path.
-			typename BoundingBoxType::Pointer boundingBox = BoundingBoxType::New();
-			boundingBox->SetPoints( m_VertexList );
-			boundingBox->ComputeBoundingBox();
-			
-			regionStartIndex.CopyWithRound( boundingBox->GetMinimum() );
-			regionEndIndex.CopyWithRound( boundingBox->GetMaximum() );
-			regionOffset = regionEndIndex - regionStartIndex;
-			
-			for(unsigned int i = 0; i < Dimension; i++)
-			{
-				if( regionOffset[i] >= 0 )
-				{
-					regionSize[i] = static_cast<typename SizeType::SizeValueType>(regionOffset[i]) + 1;
-				}
-				else
-				{
-					itkExceptionMacro(<<"Bounding box extraction has failed!");
-				}
-			}
-		}		
-		
-		imageRegion.SetIndex( regionStartIndex );
-		imageRegion.SetSize( regionSize );
-		
+		ComputeBoundingImageRegionFromVertexList(m_VertexList.GetPointer(),
+																						 imageRegion);
+																						 
 		return imageRegion;
 	}
+
+	template <unsigned int VDimension>
+	typename PolyLineParametricPathExtended<VDimension>::ImageRegionType 
+	PolyLineParametricPathExtended<VDimension>::	
+	ComputeBoundingImageRegionWithRadius(const SpacingType& spacing) const
+	{
+		ImageRegionType imageRegion;
+			
+		VertexListPointer vertexListWithRadiusOffsets = VertexListType::New();
+																							 
+		for(typename VertexListType::ElementIdentifier i = 0; 
+				i < m_VertexList->Size(); 
+				i++)
+		{
+			RadiusType radius = m_RadiusList[i];
+		
+			// Compute the offset vector for the given radius value.
+			RadiusType offset;
+			VertexType vertex = m_VertexList->ElementAt(i);
+			VertexType vertexTopLeft;
+			VertexType vertexBottomRight;
+			for(unsigned int j = 0; j < Dimension; j++)
+			{
+				offset = radius / spacing[j];
+				
+				vertexTopLeft[j] = vertex[j] + offset;
+				vertexBottomRight[j] = vertex[j] - offset;
+			}
+		
+			// Insert two points in the list one with the offset 
+			// added and the other subtracted.
+			vertexListWithRadiusOffsets->InsertElement(
+			vertexListWithRadiusOffsets->Size(), vertexTopLeft);
+			vertexListWithRadiusOffsets->InsertElement(
+			vertexListWithRadiusOffsets->Size(), vertexBottomRight);
+		}
+		
+		ComputeBoundingImageRegionFromVertexList(vertexListWithRadiusOffsets.GetPointer(),
+																						 imageRegion);
+																						 
+		return imageRegion;
+	}
+	
+	template <unsigned int VDimension>
+	typename PolyLineParametricPathExtended<VDimension>::VertexType 
+	PolyLineParametricPathExtended<VDimension>::	
+	ComputeMeanVertex() const
+	{
+		VertexType meanVertex;
+		meanVertex.Fill( NumericTraits<typename VertexType::ValueType>::ZeroValue() );
+		if( m_VertexList->Size() == 0 )
+		{
+			return meanVertex;
+		}
+		
+		for(typename VertexListType::ElementIdentifier i = 0; 
+				i < m_VertexList->Size(); 
+				i++)
+		{
+			VertexType vertex = m_VertexList->ElementAt(i);
+			for(unsigned int j = 0; j < Dimension; j++)
+			{
+				meanVertex[j] += vertex[j];
+			}
+		}
+		
+		for(unsigned int j = 0; j < Dimension; j++)
+		{
+			meanVertex[j] /= static_cast<typename VertexType::ValueType>(m_VertexList->Size());
+		}
+		
+		return meanVertex;
+	}
+	
+	template <unsigned int VDimension>
+	template<class TImage>
+	typename PolyLineParametricPathExtended<VDimension>::VertexType 
+	PolyLineParametricPathExtended<VDimension>::
+	ComputeCentroidVertex(TImage* image) const
+	{
+		VertexType meanVertex;
+		meanVertex.Fill( NumericTraits<typename VertexType::ValueType>::ZeroValue() );
+		if( m_VertexList->Size() == 0 )
+		{
+			return meanVertex;
+		}
+	
+		if( m_VertexList->Size() == 1 )
+		{
+			return m_VertexList->ElementAt(0);
+		}
+		
+		double segmentLength;
+		double pathLength = 0.0;
+		for(typename VertexListType::ElementIdentifier i = 1; 
+				i < m_VertexList->Size(); 
+				i++)
+		{
+			VertexType midVertex = Evaluate(static_cast<InputType>(i) - 0.5);
+			segmentLength = GetDistanceInWorldCoords(i-1, i, image);
+			pathLength += segmentLength;
+			for(unsigned int j = 0; j < Dimension; j++)
+			{
+				meanVertex[j] += (midVertex[j] * segmentLength);
+			}
+		}
+		
+		for(unsigned int j = 0; j < Dimension; j++)
+		{
+			meanVertex[j] /= static_cast<typename VertexType::ValueType>(pathLength);
+		}
+		
+		return meanVertex;
+	}
+	
+	
 	
 	template <unsigned int VDimension>
 	typename PolyLineParametricPathExtended<VDimension>::RadiusType 
@@ -646,6 +892,75 @@ namespace itk
 		
 		return meanRadius;
 	}
+	
+	template <unsigned int VDimension>
+	template<class TImage>
+	typename PolyLineParametricPathExtended<VDimension>::RadiusType 
+	PolyLineParametricPathExtended<VDimension>::
+	ComputeCentroidRadius(TImage* image) const
+	{
+		RadiusType meanRadius = NumericTraits<RadiusType>::ZeroValue();
+		if( m_VertexList->Size() == 0 )
+		{
+			return meanRadius;
+		}
+		
+		if( m_VertexList->Size() == 1 )
+		{
+			return m_RadiusList[0];
+		}
+		
+		double segmentLength;
+		double pathLength = 0.0;
+		for(typename VertexListType::ElementIdentifier i = 1; 
+				i < m_VertexList->Size(); 
+				i++)
+		{
+			RadiusType midRadius = EvaluateRadius(static_cast<InputType>(i) - 0.5);
+			segmentLength = GetDistanceInWorldCoords(i-1, i, image);
+			pathLength += segmentLength;
+			meanRadius += (midRadius * segmentLength);
+		}
+		
+		meanRadius /= static_cast<RadiusType>(pathLength);
+		
+		return meanRadius;
+	}
+	
+	
+	template <unsigned int VDimension>
+	void 
+	PolyLineParametricPathExtended<VDimension>::	
+	ScaleAndShiftRadii(double scaleFactor,
+										 double shift)
+	{
+		for(typename RadiusListType::iterator it = m_RadiusList.begin(); 
+				it != m_RadiusList.end(); 
+				it++)
+		{
+			(*it) = static_cast<RadiusType>(
+			(static_cast<double>(*it) * scaleFactor) + shift);
+		}
+	}
+		
+	template <unsigned int VDimension>
+	void 
+	PolyLineParametricPathExtended<VDimension>::
+	ScaleAndShiftVertices(double scaleFactor,
+												double shift)
+	{
+		for(typename VertexListType::ElementIdentifier i = 0; 
+				i < m_VertexList->Size(); 
+				i++)
+		{
+			VertexType& vertex = m_VertexList->ElementAt(i);
+			for(unsigned int j = 0; j < Dimension; j++)
+			{
+				vertex[j] = (vertex[j] * scaleFactor) + shift;
+			}
+		}
+	}
+	
 	
 	template <unsigned int VDimension>
 	template<class TImage>
@@ -800,8 +1115,6 @@ namespace itk
 		PointType currentPoint;
 		InputType minDistPoint = 0.0;
 		
-		const VertexListType* vertexList = this->GetVertexList();
-		
 		image->TransformContinuousIndexToPhysicalPoint(vertex, point);
 		
 		double minDist = NumericTraits<double>::max();
@@ -809,20 +1122,20 @@ namespace itk
 		// Check if there is a only a single element in the list.
 		// Note that if there is no element in the list, then the function 
 		// will return max value for double.
-		if( this->GetVertexList()->Size() == 1 )
+		if( m_VertexList->Size() == 1 )
 		{
-			image->TransformContinuousIndexToPhysicalPoint(vertexList->ElementAt(0), prevPoint);
+			image->TransformContinuousIndexToPhysicalPoint(m_VertexList->ElementAt(0), prevPoint);
 			minDist = prevPoint.EuclideanDistanceTo(point);
 		}
-		else if( this->GetVertexList()->Size() > 1 )
+		else if( m_VertexList->Size() > 1 )
 		{
 			// Traverse the list of edges and find the shorthest distance for each of them.
-			image->TransformContinuousIndexToPhysicalPoint(vertexList->ElementAt(0), prevPoint);
+			image->TransformContinuousIndexToPhysicalPoint(m_VertexList->ElementAt(0), prevPoint);
 			for(typename VertexListType::ElementIdentifier i = 1;
-					i < vertexList->Size(); 
+					i < m_VertexList->Size(); 
 					i++)
 			{
-				image->TransformContinuousIndexToPhysicalPoint(vertexList->ElementAt(i), currentPoint);
+				image->TransformContinuousIndexToPhysicalPoint(m_VertexList->ElementAt(i), currentPoint);
 				
 				InputType minDistPointForLine;
 				double minDistForLine = 
@@ -843,6 +1156,457 @@ namespace itk
 	}
 	
 	template <unsigned int VDimension>
+	template <class TImage>
+	bool
+	PolyLineParametricPathExtended<VDimension>::	
+	IsPointInTailRegion(const PointType& point, 
+											const InputType& closestPathInput,
+											const TImage* image) const
+	{
+		// Check if this is an end point and if so, compute the angle between
+		// the path direction vector and the vector that is formed by the path point 
+		// and the given one.
+		bool isInTailRegion = false;
+		bool isEndVertex = false;
+		VertexType pathEndVertex;
+		if(vcl_fabs(closestPathInput - this->StartOfInput()) < m_Epsilon)
+		{
+			isEndVertex = true;
+			
+			pathEndVertex = m_VertexList->ElementAt(0); // start vertex		
+		}
+		else if(vcl_fabs(closestPathInput - this->EndOfInput()) < m_Epsilon)
+		{
+			isEndVertex = true;
+			
+			pathEndVertex = 
+			m_VertexList->ElementAt(m_VertexList->Size() - 1);	// end vertex
+		}
+		
+		if( isEndVertex )
+		{
+			// Check if the given point is on the path's crossection 
+			// plane that contains the end point.
+			PointType endPoint;
+			image->TransformContinuousIndexToPhysicalPoint(pathEndVertex, endPoint);
+			
+			VectorType pathEndPointToGivenPointVector;
+			pathEndPointToGivenPointVector = point - endPoint;
+			
+			VectorType pathDirectionVector = 
+			this->EvaluateDirectionInWorldCoords(closestPathInput, image);
+			
+			// Check if the vectors are orthogonal to each other, if not
+			// then the given vertex is in the tail region of the path
+			// and not in the path.
+			if(vcl_fabs(pathDirectionVector * pathEndPointToGivenPointVector) > 
+				 m_Epsilon)
+			{
+				isInTailRegion = true;
+			}
+		}
+		
+		return isInTailRegion;
+	}
+	
+	template <unsigned int VDimension>
+	template <class TImage>
+	void
+	PolyLineParametricPathExtended<VDimension>::
+	ExtractClosestPathPointsThatContainsPointInWorldCoords(const VertexType& vertex, 
+																												 const TImage* image,
+																												 std::pair< double, std::vector<InputType> >& outputPairs,
+																												 bool excludeTails) const
+	{
+		PointType point;
+		PointType prevPoint;
+		PointType currentPoint;
+		double minDist = NumericTraits<double>::max();
+		std::vector<InputType> closestPoints;
+		outputPairs = std::make_pair(minDist, closestPoints);
+		
+		// Check if there is a only a single element in the list.
+		// Note that if there is no element in the list, then the function 
+		// will return max value of double as the distance and an empty set
+		// as the set of closest points.
+		image->TransformContinuousIndexToPhysicalPoint(vertex, point);
+		if( m_VertexList->Size() == 1 )
+		{
+			image->TransformContinuousIndexToPhysicalPoint(m_VertexList->ElementAt(0), 
+																										 prevPoint);
+			minDist = prevPoint.EuclideanDistanceTo(point);
+			
+			if( (minDist - static_cast<double>(m_RadiusList[0])) < m_Epsilon )
+			{
+				outputPairs.first = minDist;
+				outputPairs.second.push_back( 0.0 );
+			}
+		}
+		else if( m_VertexList->Size() > 1 )
+		{
+			InputType minDistPointForLine;
+			double minDistForLine;
+			InputType minDistPoint = NumericTraits<InputType>::max();
+			
+			// Traverse the list of edges and find the shorthest distance for each of them.
+			image->TransformContinuousIndexToPhysicalPoint(m_VertexList->ElementAt(0), prevPoint);
+			for(typename VertexListType::ElementIdentifier i = 1;
+					i < m_VertexList->Size(); 
+					i++)
+			{
+				image->TransformContinuousIndexToPhysicalPoint(m_VertexList->ElementAt(i), currentPoint);
+				
+				minDistForLine = this->GetEuclDistToLineSegment(prevPoint, currentPoint, 
+																												point, minDistPointForLine);
+				// Check if this is the same path point as the one returned from the previous
+				// line segment.
+				if(vcl_fabs(minDistPoint - (static_cast<InputType>(i-1) + minDistPointForLine)) > 
+					 m_Epsilon)
+				{
+					minDistPoint = static_cast<InputType>(i-1) + minDistPointForLine;
+					
+					// Check if the path point contains the given one.
+					if((minDistForLine - static_cast<double>(this->EvaluateRadius(minDistPoint))) < 
+						 m_Epsilon )
+					{
+						// Check if the given point is in the tail region.
+						bool isTailRegion = false;
+						if( excludeTails )
+						{
+							isTailRegion = this->IsPointInTailRegion(point, minDistPoint, image);
+						}
+						
+						if( !isTailRegion )
+						{					
+							// Check if this is one of the closest points so far.
+							if( vcl_fabs(minDist - minDistForLine) < m_Epsilon )
+							{
+								outputPairs.second.push_back( minDistPoint );
+							}
+							else if( minDist > minDistForLine ) // check if this is the closest point.
+							{
+								minDist = minDistForLine;
+								
+								outputPairs.first = minDist;
+								outputPairs.second.clear();
+								outputPairs.second.push_back( minDistPoint );
+							}
+						}
+					}
+				}
+				
+				prevPoint = currentPoint;
+			}
+		}
+	}
+
+	
+	template <unsigned int VDimension>
+	template <class TImage>
+	bool  
+	PolyLineParametricPathExtended<VDimension>::
+	DoesContainPoint(const VertexType& vertex,
+									 const TImage* image,
+									 bool excludeTails) const
+	{
+		PointType point;
+		PointType prevPoint;
+		PointType currentPoint;
+	
+		// Check if there is a only a single element in the list.
+		// Note that if there is no element in the list, then the function 
+		// will return false.
+		bool doesContain = false;
+		image->TransformContinuousIndexToPhysicalPoint(vertex, point);
+		if( m_VertexList->Size() == 1 )
+		{
+			image->TransformContinuousIndexToPhysicalPoint(m_VertexList->ElementAt(0), prevPoint);
+			doesContain = (static_cast<double>(prevPoint.EuclideanDistanceTo(point)) - 
+			static_cast<double>(this->GetRadiusList()[0])) < m_Epsilon;
+		}
+		else if( m_VertexList->Size() > 1 )
+		{
+			// Traverse the list of edges and find the shorthest distance for each of them.
+			image->TransformContinuousIndexToPhysicalPoint(m_VertexList->ElementAt(0), prevPoint);
+			for(typename VertexListType::ElementIdentifier i = 1;
+					(i < m_VertexList->Size()) && (!doesContain); 
+					i++)
+			{
+				image->TransformContinuousIndexToPhysicalPoint(m_VertexList->ElementAt(i), currentPoint);
+				
+				InputType minDistPoint;
+				double minDistForLine = 
+				this->GetEuclDistToLineSegment(prevPoint, currentPoint, 
+																			 point, minDistPoint);
+				minDistPoint = static_cast<InputType>(i-1) + minDistPoint;
+				
+				// Check if the given point is inside the line segment.
+				if((minDistForLine - static_cast<double>(this->EvaluateRadius(minDistPoint))) < 
+					 m_Epsilon )
+				{
+					doesContain = true;
+					
+					if( excludeTails )
+					{
+						doesContain = !(this->IsPointInTailRegion(point, minDistPoint, image));
+					}
+				}
+				
+				prevPoint = currentPoint;
+			}
+		}
+	 
+		return doesContain;
+	}
+	
+	template <unsigned int VDimension>
+	template <class TImage>
+	bool  
+	PolyLineParametricPathExtended<VDimension>::
+	DoesContainPointsOfPath(const Self* path,
+													const TImage* image,
+													bool excludeTails) const
+	{
+		bool containVertices = true;
+	
+		// Check if this path contains all the vertices of 
+		// the given path. 
+		const VertexListType* vertexList = path->GetVertexList();
+		typename VertexListType::ElementIdentifier noOfVertices = 
+		vertexList->Size();
+		for(typename VertexListType::ElementIdentifier i = 0;
+				(i < noOfVertices) && containVertices; 
+				i++)
+		{
+			containVertices = DoesContainPoint(vertexList->ElementAt(i), 
+																				 image, excludeTails);
+		}
+		
+		return containVertices;
+	}
+	
+	
+	template <unsigned int VDimension>
+	template <class TImage>
+	double  
+	PolyLineParametricPathExtended<VDimension>::
+	ComputeMaxPathSegmLengthOutsidePath(const Self* path,
+																			const TImage* image,
+																			bool excludeTails) const
+	{
+		// Compute the minimum image spacing.
+		const typename TImage::SpacingType& spacing = image->GetSpacing();
+		double minSpacing = spacing.GetVnlVector().min_value();
+		
+		double length = 0.0;
+		double max_length = 0.0;
+		const VertexListType* vertexList = this->GetVertexList();
+		typename VertexListType::ElementIdentifier noOfVertices = 
+		vertexList->Size();
+		PointType currPoint;
+		PointType prevPoint;
+		bool prevFlag = false;
+		bool currFlag = false;
+		image->TransformContinuousIndexToPhysicalPoint
+		(vertexList->ElementAt(0), prevPoint);
+		for(typename VertexListType::ElementIdentifier i = 1;
+				i < noOfVertices; 
+				i++)
+		{
+			// Determine the step size to take.
+			image->TransformContinuousIndexToPhysicalPoint
+			(vertexList->ElementAt(i), currPoint);
+			
+			double dist = currPoint.EuclideanDistanceTo(prevPoint);
+			unsigned long numberOfSteps = 
+			itk::Math::Ceil<unsigned long>(dist / minSpacing);
+			double worldStep = dist / static_cast<double>(numberOfSteps);
+			InputType inputStep = 1.0 / static_cast<InputType>(numberOfSteps);
+			
+			InputType currInput = 
+			this->StartOfInput() + static_cast<InputType>(i-1) + 
+			inputStep;	// discard the first point.
+			for(unsigned long j = 0;
+					j < numberOfSteps; 
+					j++)
+			{
+				currFlag = !(path->DoesContainPoint
+										 (this->Evaluate(currInput), image, excludeTails));
+				
+				if( currFlag )
+				{
+					length += worldStep;
+				}
+				else if( (!currFlag) && prevFlag )
+				{
+					if( max_length < length )
+					{
+						max_length = length;
+					}
+					length = 0.0;		// reset the accumulated length.
+				}
+				
+				currInput += inputStep;
+				prevFlag = currFlag;
+			}
+			if( max_length < length )
+			{
+				max_length = length;
+			}			
+			
+			prevPoint = currPoint;
+		}
+		
+		return max_length;
+	}
+	
+	template <unsigned int VDimension>
+	template <class TImage>
+	double  
+	PolyLineParametricPathExtended<VDimension>::
+	ComputePathLengthInsidePath(const Self* path,
+														  const TImage* image,
+															bool excludeTails) const
+	{
+		// Compute the minimum image spacing.
+		const typename TImage::SpacingType& spacing = image->GetSpacing();
+		double minSpacing = spacing.GetVnlVector().min_value();
+	
+		double length = 0.0;
+		const VertexListType* vertexList = this->GetVertexList();
+		typename VertexListType::ElementIdentifier noOfVertices = 
+		vertexList->Size();
+		PointType currPoint;
+		PointType prevPoint;
+		image->TransformContinuousIndexToPhysicalPoint
+		(vertexList->ElementAt(0), prevPoint);
+		for(typename VertexListType::ElementIdentifier i = 1;
+				i < noOfVertices; 
+				i++)
+		{
+			// Determine the step size to take.
+			image->TransformContinuousIndexToPhysicalPoint
+			(vertexList->ElementAt(i), currPoint);
+			
+			double dist = currPoint.EuclideanDistanceTo(prevPoint);
+			unsigned long numberOfSteps = 
+			itk::Math::Ceil<unsigned long>(dist / minSpacing);
+			double worldStep = dist / static_cast<double>(numberOfSteps);
+			InputType inputStep = 1.0 / static_cast<InputType>(numberOfSteps);
+			
+			InputType currInput = 
+			this->StartOfInput() + static_cast<InputType>(i-1) + 
+			inputStep;	// discard the first point.
+			for(unsigned long j = 0;
+					j < numberOfSteps; 
+					j++)
+			{
+				if(path->DoesContainPoint
+					 (this->Evaluate(currInput), image, excludeTails))
+				{
+					length += worldStep;
+				}
+				currInput += inputStep;
+			}
+			
+			prevPoint = currPoint;
+		}
+		
+		return length;
+	}
+	
+	template <unsigned int VDimension>
+	template <class TImage>
+	double  
+	PolyLineParametricPathExtended<VDimension>::
+	ComputePathLengthOutsidePath(const Self* path,
+															 const TImage* image,
+															 bool excludeTails) const
+	{
+		double length = 
+		this->GetLengthInWorldCoords(image) - 
+		this->ComputePathLengthInsidePath(path, image, excludeTails);
+		
+		if( length < 0.0 )
+		{
+			return 0.0;
+		}
+		
+		return length;
+	}
+	
+	template <unsigned int VDimension>
+	template <class TImage>
+	double  
+	PolyLineParametricPathExtended<VDimension>::
+	ComputePathLengthInsideMask(const TImage* maskImage) const
+	{
+		// Compute the minimum image spacing.
+		const typename TImage::SpacingType& spacing = maskImage->GetSpacing();
+		double minSpacing = spacing.GetVnlVector().min_value();
+	
+		double length = 0.0;
+		const VertexListType* vertexList = this->GetVertexList();
+		typename VertexListType::ElementIdentifier noOfVertices = 
+		vertexList->Size();
+		PointType currPoint;
+		PointType prevPoint;
+		maskImage->TransformContinuousIndexToPhysicalPoint
+		(vertexList->ElementAt(0), prevPoint);
+		for(typename VertexListType::ElementIdentifier i = 1;
+				i < noOfVertices; 
+				i++)
+		{
+			// Determine the step size to take.
+			maskImage->TransformContinuousIndexToPhysicalPoint
+			(vertexList->ElementAt(i), currPoint);
+		
+			double dist = currPoint.EuclideanDistanceTo(prevPoint);
+			unsigned long numberOfSteps = 
+			itk::Math::Ceil<unsigned long>(dist / minSpacing);
+			double worldStep = dist / static_cast<double>(numberOfSteps);
+			InputType inputStep = 1.0 / static_cast<InputType>(numberOfSteps);
+			
+			InputType currInput = 
+			this->StartOfInput() + static_cast<InputType>(i-1) + 
+			inputStep;	// discard the first point.
+			IndexType currIndex;
+			for(unsigned long j = 0;
+					j < numberOfSteps; 
+					j++)
+			{
+				currIndex.CopyWithRound( this->Evaluate(currInput) );
+				if( static_cast<bool>(maskImage->GetPixel(currIndex)) )
+				{
+					length += worldStep;
+				}
+				currInput += inputStep;
+			}
+			
+			prevPoint = currPoint;
+		}
+		
+		return length;
+	}
+	
+	
+	template <unsigned int VDimension>
+	template <class TImage>
+	double  
+	PolyLineParametricPathExtended<VDimension>::
+	ComputePathLengthOutsideMask(const TImage* maskImage) const
+	{
+		double length =  
+		this->GetLengthInWorldCoords(maskImage) - 
+		this->ComputePathLengthInsideMask(maskImage);
+		
+		if( length < 0.0 )
+		{
+			return 0.0;
+		}
+	}
+	
+	template <unsigned int VDimension>
 	template <class TPoint>
 	double  
 	PolyLineParametricPathExtended<VDimension>::	
@@ -856,10 +1620,11 @@ namespace itk
 		double distBX;		
 		double dot1;
 		double dot2;
+		double finalDist;
 		
 		// Check if the line points are very close to each other.
 		distAB = lineVertex1.EuclideanDistanceTo(lineVertex2);
-		if( distAB < NumericTraits<double>::epsilon() )
+		if( distAB < m_Epsilon )
 		{
 			minDistPoint = 0.0;
 			return lineVertex1.EuclideanDistanceTo(vertex);
@@ -868,7 +1633,7 @@ namespace itk
 		// Supose that lineVertex1 := A, lineVertex2 := B and vertex := C.
 		// Find the dot product of BA and AC.
 		dot1 = (lineVertex1 - lineVertex2) * (vertex - lineVertex1) ;
-		if( dot1 > 0 )
+		if( dot1 > -m_Epsilon )
 		{
 			minDistPoint = 0.0;
 			return lineVertex1.EuclideanDistanceTo(vertex);
@@ -876,7 +1641,7 @@ namespace itk
 		
 		// Find the dot product of AB and BC.
 		dot2 = (lineVertex2 - lineVertex1) * (vertex - lineVertex2) ;
-		if( dot2 > 0 )
+		if( dot2 > -m_Epsilon )
 		{
 			minDistPoint = 1.0;
 			return lineVertex2.EuclideanDistanceTo(vertex);
@@ -895,7 +1660,15 @@ namespace itk
 		{
 			minDistPoint = 0.0;
 		}
-		return vcl_sqrt(distBC*distBC - distBX*distBX);
+		finalDist = distBC*distBC - distBX*distBX;
+		if( finalDist < m_Epsilon )
+		{
+			return 0;
+		}
+		else
+		{
+			return vcl_sqrt(finalDist);
+		}
 	}
 	
 	
@@ -904,14 +1677,15 @@ namespace itk
 	template<class TImage>
 	void 
 	PolyLineParametricPathExtended<VDimension>::
-	OverlayFromNeighIter(typename TImage::RegionType& regionForBoundCheck, 
-											 typename TImage::PixelType overlayVal,
+	OverlayFromNeighIter(typename TImage::PixelType overlayVal,
 											 ShapedNeighborhoodIterator<TImage>& iter,
 											 const Image<bool, TImage::ImageDimension>* binaryMap) const
 	{
 		typedef TImage																						ImageType;
 		typedef ShapedNeighborhoodIterator<ImageType>							NeighborhoodIteratorType;
 
+		ImageRegionType region = iter.GetRegion();
+		
 		if( binaryMap == 0 )
 		{
 			for(typename NeighborhoodIteratorType::Iterator neighIter = iter.Begin(); 
@@ -921,7 +1695,7 @@ namespace itk
 				typename ImageType::IndexType imageIndex = 
 				iter.GetIndex(neighIter.GetNeighborhoodIndex());
 				
-				if( regionForBoundCheck.IsInside( imageIndex ) )
+				if( region.IsInside( imageIndex ) )
 				{
 					iter.SetPixel(neighIter.GetNeighborhoodIndex(), overlayVal);
 				}
@@ -929,6 +1703,23 @@ namespace itk
 		}
 		else
 		{
+			// The image of the input iterator can be different than the 
+			// binaryMap image. That is why, we need to use their overlapping 
+			// region.
+			bool isInside = region.Crop(binaryMap->GetBufferedRegion());
+			
+			// Check if the region is outside the buffered 
+			// region of the image.
+			if( !isInside )
+			{
+				itkExceptionMacro(<<"The iterator region "
+													<<region
+													<<" is outside the  "
+													<<"BufferedRegion "
+													<< binaryMap->GetBufferedRegion()
+													<<" of the input binary image.");
+			}
+			
 			for(typename NeighborhoodIteratorType::Iterator neighIter = iter.Begin(); 
 					!neighIter.IsAtEnd(); 
 					++neighIter)
@@ -936,7 +1727,7 @@ namespace itk
 				typename ImageType::IndexType imageIndex = 
 				iter.GetIndex(neighIter.GetNeighborhoodIndex());
 				
-				if(regionForBoundCheck.IsInside( imageIndex ) )
+				if(region.IsInside( imageIndex ) )
 				{
 					if( binaryMap->GetPixel( imageIndex ) )
 					{
@@ -945,6 +1736,55 @@ namespace itk
 				}
 			}			
 		}
+	}
+	
+	template <unsigned int VDimension>
+	void
+	PolyLineParametricPathExtended<VDimension>::	
+	ComputeBoundingImageRegionFromVertexList(const VertexListType* vertexList,
+																					 ImageRegionType& region) const
+	{
+		typedef BoundingBox<typename VertexListType::ElementIdentifier,
+		Dimension, typename VertexType::CoordRepType, VertexListType> BoundingBoxType;
+		
+		IndexType				regionStartIndex;
+		IndexType				regionEndIndex;
+		SizeType				regionSize;
+		
+		if( vertexList->Size() == 0 )
+		{
+			itkWarningMacro(<<"ComputeBoundingImageRegionFromVertexList method "
+											<<"is called with an empty vertex list. Returning an "
+											<<"empty image region!");
+			
+			regionStartIndex.Fill( 0 );
+			regionSize.Fill( 0 );
+		}
+		else
+		{		
+			// Compute the bounding box of the path.
+			typename BoundingBoxType::Pointer boundingBox = BoundingBoxType::New();
+			boundingBox->SetPoints( vertexList );
+			boundingBox->ComputeBoundingBox();
+			typename BoundingBoxType::PointType bbMin = boundingBox->GetMinimum();
+			typename BoundingBoxType::PointType bbMax = boundingBox->GetMaximum();			
+			for(unsigned int dim = 0; dim < Dimension; dim++)
+			{
+				// Note that a pixel at index indx takes the image 
+				// region up to (indx + 0.5). That is why we use round here.
+				regionStartIndex[dim] = 
+				Math::Round<typename IndexType::IndexValueType>(bbMin[dim]);
+				regionEndIndex[dim] = 
+				Math::Round<typename IndexType::IndexValueType>(bbMax[dim]);
+				
+				regionSize[dim] = 
+				static_cast<typename SizeType::SizeValueType>
+				(regionEndIndex[dim] - regionStartIndex[dim] + 1);
+			}
+		}		
+		
+		region.SetIndex( regionStartIndex );
+		region.SetSize( regionSize );
 	}
 	
 	
@@ -1041,8 +1881,8 @@ namespace itk
 					j < vertexList2->Size(); 
 					j++)
 			{
-				if(vertexList1->ElementAt(i).EuclideanDistanceTo(vertexList2->ElementAt(j)) <
-					 NumericTraits<double>::epsilon())
+				if(vertexList1->ElementAt(i).SquaredEuclideanDistanceTo(vertexList2->ElementAt(j)) <
+					 m_Epsilon)
 				{
 					intersectionCount++;
 					break;
@@ -1052,6 +1892,152 @@ namespace itk
 		
 		return intersectionCount;
 	}
+
+	template <unsigned int VDimension>
+	template<class TImage>
+	void
+	PolyLineParametricPathExtended<VDimension>::
+	ComputeIntersectionAndUnionInImageCoords(const Self* path,
+																					 const TImage* image,
+																					 unsigned long& intersectionVolume,
+																					 unsigned long& unionVolume,
+																					 bool excludeTails) const
+	{
+		typedef TImage																ImageType;
+		typedef ImageRegionConstIterator<ImageType>		RegionIterType;
+		
+		intersectionVolume = 0;
+		unionVolume = 0;
+		
+		// Compute the union of bounding image regions.
+		// Its damn stupid not to have an itk method for this 
+		// inside the ImageRegion class.
+		ImageRegionType unionOfBoundingRegions;
+		ImageRegionType boundingRegion1 = 
+		this->ComputeBoundingImageRegionWithRadius(image->GetSpacing());
+		ImageRegionType boundingRegion2 = 
+		path->ComputeBoundingImageRegionWithRadius(image->GetSpacing());
+		boundingRegion1.Crop(image->GetBufferedRegion());
+		boundingRegion2.Crop(image->GetBufferedRegion());
+		typename ImageRegionType::SizeValueType noOfBBPixels1 = 
+		boundingRegion1.GetNumberOfPixels();
+		typename ImageRegionType::SizeValueType noOfBBPixels2 = 
+		boundingRegion2.GetNumberOfPixels();
+		typename ImageRegionType::SizeValueType zeroValue = 
+		NumericTraits<typename ImageRegionType::SizeValueType>::ZeroValue();
+		if((noOfBBPixels1 != zeroValue) && (noOfBBPixels2 != zeroValue))
+		{
+			IndexType topLeftIndex1 = boundingRegion1.GetIndex();
+			IndexType topLeftIndex2 = boundingRegion2.GetIndex();
+			IndexType bottomRightIndex1 = 
+			boundingRegion1.GetIndex() + boundingRegion1.GetSize();
+			IndexType bottomRightIndex2 = 
+			boundingRegion2.GetIndex() + boundingRegion2.GetSize();
+			for(unsigned int i = 0; i < Dimension; i++)
+			{
+				bottomRightIndex1[i]--;
+				bottomRightIndex2[i]--;
+			}
+			if( !boundingRegion1.IsInside( topLeftIndex2 ) )
+			{
+				for(unsigned int i = 0; i < Dimension; i++)
+				{
+					if( topLeftIndex1[i] > topLeftIndex2[i] )
+					{
+						topLeftIndex1[i] = topLeftIndex2[i];
+					}
+				}
+			}
+			SizeType unionSize;
+			for(unsigned int i = 0; i < Dimension; i++)
+			{
+				if( bottomRightIndex1[i] < bottomRightIndex2[i] )
+				{
+					unionSize[i] = bottomRightIndex2[i] - topLeftIndex1[i] + 1;
+				}
+				else
+				{
+					unionSize[i] = bottomRightIndex1[i] - topLeftIndex1[i] + 1;
+				}
+			}
+			unionOfBoundingRegions.SetIndex( topLeftIndex1 );
+			unionOfBoundingRegions.SetSize( unionSize );
+		}
+		else if((noOfBBPixels1 == zeroValue) && (noOfBBPixels2 != zeroValue))
+		{
+			unionOfBoundingRegions = boundingRegion2;
+		}
+		else if((noOfBBPixels1 != zeroValue) && (noOfBBPixels2 == zeroValue))
+		{
+			unionOfBoundingRegions = boundingRegion1;
+		}
+		else
+		{
+			return;
+		}
+		
+		
+		// Traverse the union of bounding regions and compute the 
+		// number of pixels in the intersection and union regions.
+		RegionIterType iter(image, unionOfBoundingRegions);
+		for(iter.GoToBegin(); 
+				!iter.IsAtEnd(); 
+				++iter)
+		{	
+			// Find the closest path point to this pixel. 
+			IndexType currentIndex = iter.GetIndex();
+			OutputType currentContIndex( currentIndex );
+			
+			bool isInsidePath1 = 
+			this->DoesContainPoint(currentContIndex, image, excludeTails);
+			
+			bool isInsidePath2 = 
+			path->DoesContainPoint(currentContIndex, image, excludeTails);
+			
+			if(isInsidePath1 && isInsidePath2)
+			{
+				intersectionVolume++;
+			}
+			if(isInsidePath1 || isInsidePath2)
+			{
+				unionVolume++;
+			}
+		}
+	}
+																					 
+	
+	template <unsigned int VDimension>
+	template<class TImage>
+	void
+	PolyLineParametricPathExtended<VDimension>::
+	ComputeIntersectionAndUnionInWorldCoords(const Self* path,
+																					 const TImage* image,
+																					 double& intersectionVolume,
+																					 double& unionVolume,
+																					 bool excludeTails) const
+	{
+		// Compute first in image coordinates.
+		unsigned long intersectPixelCounter;
+		unsigned long unionPixelCounter;
+		this->ComputeIntersectionAndUnionInImageCoords(path, image,
+																									 intersectPixelCounter,
+																									 unionPixelCounter,
+																									 excludeTails);
+
+		// Multiply the number of pixel with the volume of a pixel to 
+		// get the actual volume of the regions.
+		SpacingType spacing = image->GetSpacing();
+		double pixelVolume = 1.0;
+		for(unsigned int i = 0; i < Dimension; i++)
+		{
+			pixelVolume *= static_cast<double>(spacing[i]);
+		}
+		intersectionVolume = 
+		static_cast<double>(intersectPixelCounter) * pixelVolume;
+		unionVolume = 
+		static_cast<double>(unionPixelCounter) * pixelVolume;
+	}
+
 	
 	
 	template <unsigned int VDimension>
@@ -1059,6 +2045,7 @@ namespace itk
 	::PolyLineParametricPathExtended()
 	{
 		this->SetDefaultInputStepSize( 0.1 );
+		this->SetEpsilon( NumericTraits<float>::epsilon() );
 		m_VertexList = VertexListType::New();
 		m_EffectiveDimension = Dimension;
 	}
@@ -1073,6 +2060,8 @@ namespace itk
 		os << indent << "Radius List:  " << &m_RadiusList << std::endl;
 		
 		os << indent << "Effective Dimension:  " << m_EffectiveDimension << std::endl;
+		
+		os << indent << "Epsilon:  " << m_Epsilon << std::endl;
 	}
 	
 } // end namespace itk
