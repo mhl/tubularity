@@ -301,13 +301,6 @@ namespace itk
 		}
 		charPathFilter->Update();
 		
-		SpacingType spacing = input->GetSpacing();
-		double minSpacing = spacing[0];
-		for(unsigned int i = 0; i < SetDimension-1; i++)
-		{
-			minSpacing = vnl_math_min(minSpacing, spacing[i]);
-		}
-		
 		outputPathList.resize( numberOfOutputs );
 		for ( unsigned int n=0; n < numberOfOutputs; n++ )
 		{
@@ -315,7 +308,7 @@ namespace itk
 			
 			// Reverse the path so that it is from the source vertex to the target one.
 			path->Reverse();
-			path->Resample(0.5*minSpacing, input);
+			
 			outputPathList[n] = path;
 		}
 	}

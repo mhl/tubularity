@@ -77,7 +77,7 @@ Execute( float* pt1, float* pt2)
   
   // Set the tubularity score
   pathFilter->SetInput( tubularityScore );
-  pathFilter->SetScaleSpeedFactor(10.0);// TODO: shouldn't be hardcoded
+  pathFilter->SetScaleSpeedFactor(1.0);// TODO: shouldn't be hardcoded
 
   // Get the start and end points and give them to the path filter
   IndexType startPoint;
@@ -106,7 +106,7 @@ Execute( float* pt1, float* pt2)
   sizeSubRegion[Dimension]  = region.GetSize()[Dimension];
   // extract sub region and pad it in the spatial domain
   //TODO: This shouldn't be hardcoded
-  int subRegionPad    = 10; 
+  int subRegionPad    = 10;
   //TODO: This shouldn't be hardcoded
   // Anyways, we'll get rid of it soon ;-)
   for(unsigned int i = 0; i < Dimension; i++)
@@ -124,18 +124,29 @@ Execute( float* pt1, float* pt2)
   std::cout << "sub region to process" << subRegionToProcess << std::endl;
   pathFilter->Update();
   
-  SpacingType spacing = tubularityScore->GetSpacing();
+	SpacingType spacing = tubularityScore->GetSpacing();
   OriginType  origin = tubularityScore->GetOrigin();
+	
+	// Get the minimum spacing among all the spatial dimensions.
+	double minSpacing = spacing[0];
+	for(unsigned int i = 1; i < Dimension-1; i++)
+	{
+		minSpacing = vnl_math_min(minSpacing, spacing[i]);
+	}
+	
+	// Downsample the path and smooth it slightly.
+	pathFilter->GetPath(0)->Resample(0.5 * minSpacing, tubularityScore.GetPointer());
+	pathFilter->GetPath(0)->SmoothVertexLocationsAndRadii(minSpacing, tubularityScore.GetPointer());
 
   Outputpath.clear();
   for(unsigned int k = 0; k < pathFilter->GetPath(0)->GetVertexList()->Size(); k++)
-    {
-       	VertexType vertex = pathFilter->GetPath(0)->GetVertexList()->GetElement(k);
-	for (unsigned int i = 0; i < Dimension+1; i++) 
+	{
+		VertexType vertex = pathFilter->GetPath(0)->GetVertexList()->GetElement(k);
+		for (unsigned int i = 0; i < Dimension+1; i++) 
 	  {
 	    Outputpath.push_back(vertex[i]*spacing[i]+origin[i]);
 	  }
-    }
+	}
 }
 
 /**

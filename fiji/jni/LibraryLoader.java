@@ -20,10 +20,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import java.util.*;
-import java.io.*;
-import java.lang.reflect.Field;
-
 import java.net.URL;
 
 /**
@@ -38,33 +34,7 @@ public class LibraryLoader {
 	protected static boolean libraryLoaded;
 	protected String baseURL;
 
-	public static void addDir(String s) throws IOException {
-   		 try {
-      			  // This enables the java.library.path to be modified at runtime
-      			  // From a Sun engineer at http://forums.sun.com/thread.jspa?threadID=707176
-      			  //
-      			 Field field = ClassLoader.class.getDeclaredField("usr_paths");
-       			 field.setAccessible(true);
-       			 String[] paths = (String[])field.get(null);
-       			 for (int i = 0; i < paths.length; i++) {
-        			    if (s.equals(paths[i])) {
-        			        return;
-        			    }
-     			   }
-      			  String[] tmp = new String[paths.length+1];
-      			  System.arraycopy(paths,0,tmp,0,paths.length);
-      			  tmp[paths.length] = s;
-      			  field.set(null,tmp);
-      			  System.setProperty("java.library.path", System.getProperty("java.library.path") + File.pathSeparator + s);
-    			} catch (IllegalAccessException e) {
-       			 throw new IOException("Failed to get permissions to set library path");
-   			 } catch (NoSuchFieldException e) {
-      			  throw new IOException("Failed to get field handle to set library path");
-   			 }
-	}
-
 	protected LibraryLoader() {
-
 		if (baseURL == null) {
 			String classFile = getClass().getName().replace('.', '/') + ".class";
 			URL url = getClass().getResource("/" + classFile);
@@ -74,50 +44,7 @@ public class LibraryLoader {
 					baseURL = string.substring(0, string.length() - classFile.length());
 			}
 		}
-
 		if (!libraryLoaded) {
-			//Trick to set java.library.path from the current directory
-			String currentDir = System.getProperty("user.dir");
-            		String platform = getPlatform();
-            
-			try{
-				System.setProperty("java.library.path", "./plugins/ITK/" + platform + ":" + currentDir + "/plugins/ITK/" + platform);
-            		   	String path = System.getProperty("java.library.path");
-
-				//The variable sys_paths is re-initialized if it set to null
-				Field fieldSysPath = ClassLoader.class.getDeclaredField( "sys_paths" );
-				fieldSysPath.setAccessible( true );
-				fieldSysPath.set( null, null );
-
-				//Need to call loadLibrary to re-initilaize the sys_paths
-				System.loadLibrary("itkzlib"); System.loadLibrary("ITKNrrdIO");
-				System.loadLibrary("itkopenjpeg"); 
-
-				if(platform.equals("linux64")){
-					System.loadLibrary("gdcmCommon");System.loadLibrary("gdcmDSED"); System.loadLibrary("gdcmIOD");System.loadLibrary("gdcmDICT"); System.loadLibrary("gdcmjpeg8"); 
-					System.loadLibrary("gdcmjpeg12"); System.loadLibrary("gdcmjpeg16"); System.loadLibrary("gdcmcharls");
-				}
-				
-				System.loadLibrary("itkpng"); System.loadLibrary("itkjpeg8"); System.loadLibrary("itkjpeg12"); System.loadLibrary("itkjpeg16"); System.loadLibrary("itktiff"); 
-				System.loadLibrary("itkv3p_netlib"); System.loadLibrary("itkvcl"); System.loadLibrary("itkvnl"); System.loadLibrary("itkvnl_algo");
-               			System.loadLibrary("itkvnl_inst"); 
-				System.loadLibrary("itksys"); System.loadLibrary("ITKCommon");
-				System.loadLibrary("ITKMetaIO");System.loadLibrary("ITKSpatialObject");
-				System.loadLibrary("ITKDICOMParser"); System.loadLibrary("ITKEXPAT"); 
-				System.loadLibrary("ITKznz"); System.loadLibrary("ITKniftiio");
-
-				System.loadLibrary("itkNetlibSlatec"); 
-
-				System.loadLibrary("ITKNumerics");
-				System.loadLibrary("ITKStatistics"); 
-				
-				System.loadLibrary("itkgdcm");System.loadLibrary("ITKIO"); System.loadLibrary("ITKAlgorithms");
-
-		
-			} catch (Exception e){
-				throw new RuntimeException("Could not extract : " + e);
-			}
-
 			loadLibrary();
 			libraryLoaded = true;
 		}
@@ -159,47 +86,36 @@ public class LibraryLoader {
 	}
 
 	protected void loadLibrary() {
-		
 		String className = getClass().getName();
 		loadLibrary(className.substring(className.lastIndexOf('.') + 1));
 	}
 
 	protected void loadLibrary(String name) {
-	String fileName = getLibraryName(name);
-	
-        String currentDir = System.getProperty("user.dir");
-        String platform = getPlatform();
+		String fileName = getLibraryName(name);
+		if (libraryDirectory == null)
+			libraryDirectory = getLibraryDirectory();
 
-	File newlibraryDirectory = new File(currentDir + "/plugins/ITK/" + platform);
-		
-       /*if (libraryDirectory == null){
-            libraryDirectory = new File(currentDir + "/plugins/ITK/" + platform);
-        }*/
-
-	File newbaseURL = new File(currentDir);
-
-	File file = new File(newlibraryDirectory, fileName);
-	if (!file.exists()) {
-		// Try to write to the 
-		if (baseURL == null)
-			throw new RuntimeException("Could not determine .jar");
+		File file = new File(libraryDirectory, fileName);
+		if (!file.exists()) {
+			// Try to write to the 
+			if (baseURL == null)
+				throw new RuntimeException("Could not determine .jar");
 			try {
-				URL url = new URL(newbaseURL + "/plugins/ITK/" + getPlatform() + "/" + fileName);
+				URL url = new URL(baseURL + getPlatform() + "/" + fileName);
 				try {
 					copy(url, file);
 				} catch (IOException e) {
 					// Try again with temporary directory
 					libraryDirectory = getTempLibraryDirectory(name);
-					file = new File(newlibraryDirectory, fileName);
+					file = new File(libraryDirectory, fileName);
 					copy(url, file);
 				}
 			} catch (Exception e) {
 				throw new RuntimeException("Could not extract " + fileName + ": " + e);
 			}
 		}
-        
-		System.load(file.getAbsolutePath());
 
+		System.load(file.getAbsolutePath());
 	}
 
 	protected static void copy(URL source, File target) throws IOException {
