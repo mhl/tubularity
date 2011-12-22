@@ -110,6 +110,12 @@ LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
 	-lm \
 	-ldl
 
+LINK_LIBRARIES_FFTW=-L/usr/local/lib/ \
+	 -lfftw3 \
+	 -lfftw3f \
+	 -lfftw3_threads \
+	 -lfftw3f_threads
+
 INCLUDE_ITK=-ftemplate-depth-50 -Wall -Wno-deprecated -msse2 -I$(ITK) \
 	-I$(ITK)/Code/Algorithms \
 	-I$(ITK)/Code/BasicFilters \
@@ -175,7 +181,7 @@ superclean: clean
 
 build/$(ARCH)/lib%.$(LIBRARY_EXTENSION) : FijiITKInterface/FijiITKInterface_%.h c++/%JNIImplementation.cpp
 	mkdir -p build/$(ARCH)/
-	g++ -Wall -O3 -o $@ -I../c++ c++/$*JNIImplementation.cpp -fPIC -shared  -I$(JDK_HOME)/include/ -I$(JDK_HOME)/Headers/ -I$(JDK_HOME)/include/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/  $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK)
+	g++ -Wall -O3 -o $@ -I../c++ c++/$*JNIImplementation.cpp itkCVLab/itkFFTWLock.cxx -fPIC -shared  -I$(JDK_HOME)/include/ -I$(JDK_HOME)/Headers/ -I$(JDK_HOME)/include/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/  $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK) $(LINK_LIBRARIES_FFTW) 
 
 FijiITKInterface/FijiITKInterface_%.h : FijiITKInterface/%.class
 	$(FIJI_LAUNCHER) --javah --class-path=.:$(JDK_HOME)/lib/tools.jar -jni -d FijiITKInterface FijiITKInterface.$*

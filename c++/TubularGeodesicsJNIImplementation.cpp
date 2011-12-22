@@ -6,7 +6,7 @@
 #include "itkImage.h"
 #include "itkNumericTraits.h"
 #include "itkImageFileReader.h"
-#include "itkTubularMetricToPathFilter3.h"
+#include "itkTubularMetricToPathFilter.h"
 #include "vnl/vnl_math.h"
 
 
@@ -23,7 +23,7 @@ typedef TubularityScoreImageType::IndexType                          IndexType;
 typedef TubularityScoreImageType::PointType                          OriginType;
 typedef TubularityScoreImageType::SpacingType                        SpacingType;
 
-typedef itk::TubularMetricToPathFilter3< TubularityScoreImageType >  PathFilterType;
+typedef itk::TubularMetricToPathFilter< TubularityScoreImageType >  PathFilterType;
 typedef PathFilterType::VertexType			             VertexType;
 
 typedef itk::ImageFileReader< TubularityScoreImageType >             ImageReaderType;

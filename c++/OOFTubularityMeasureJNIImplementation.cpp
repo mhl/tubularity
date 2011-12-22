@@ -4,11 +4,12 @@
 
 #include "FijiITKInterface_OOFTubularityMeasure.h"
 #include "itkImageFileWriter.h"
-#include "itkMultiScaleHessianBasedMeasureImageFilter2.h"
+#include "itkMultiScaleOrientedFluxBasedMeasureFFTImageFilter.h"
 #include "itkMinimumMaximumImageCalculator.h"
 #include "itkShiftScaleImageFilter.h"
-#include "itkHessianToOrientedFluxTraceMeasureImageFilter.h"
-#include "itkHessianToOrientedFluxMainCurvatureMeasureImageFilter.h"
+#include "itkOrientedFluxTraceMeasure.h"
+#include "itkOrientedFluxCrossSectionTraceMeasure.h"
+
 
 #define SwitchCase(CaseValue, DerivedFilterType, BaseFilterObjectPtr, Call ) \
 case CaseValue: \
@@ -90,18 +91,18 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 	
 	// Declare the type of enhancement filter
 	typedef itk::ProcessObject ObjectnessBaseFilterType;
-	typedef itk::HessianToOrientedFluxTraceMeasureFilter <HessianImageType,OutputImageType> 		HessianToOrientedFluxTraceObjectnessFilterType;	
-	typedef itk::HessianToOrientedFluxMainCurvatureMeasureFilter <HessianImageType,OutputImageType> 	HessianToOrientedFluxMainCurvatureObjectnessFilterType;	
+	typedef itk::OrientedFluxTraceMeasureFilter<HessianImageType,OutputImageType> 		HessianToOrientedFluxTraceObjectnessFilterType;	
+	typedef itk::OrientedFluxCrossSectionTraceMeasureFilter<HessianImageType,OutputImageType> 	HessianToOrientedFluxMainCurvatureObjectnessFilterType;	
 	
 	// Declare the type of multiscale enhancement filter
 	typedef itk::ProcessObject 										MultiScaleEnhancementBaseFilterType;
 
-	typedef itk::MultiScaleHessianBasedMeasureImageFilter2< InputImageType, 
+	typedef itk::MultiScaleOrientedFluxBasedMeasureFFTImageFilter< InputImageType, 
 								HessianImageType, 
 								ScalesImageType,
 								HessianToOrientedFluxTraceObjectnessFilterType, 
 								OutputImageType > 				OrientedFluxTraceMultiScaleEnhancementFilterType;
-	typedef itk::MultiScaleHessianBasedMeasureImageFilter2< InputImageType, 
+	typedef itk::MultiScaleOrientedFluxBasedMeasureFFTImageFilter< InputImageType, 
 								HessianImageType, 
 								ScalesImageType,
 								HessianToOrientedFluxMainCurvatureObjectnessFilterType, 
@@ -141,7 +142,7 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 	objectnessFilter = orientedFluxMainCurvatureObjectnessFilter;
 	
 	typename OrientedFluxMainCurvatureMultiScaleEnhancementFilterType::Pointer orientedFluxMainCurvatureMultiScaleEnhancementFilter = OrientedFluxMainCurvatureMultiScaleEnhancementFilterType::New();
-	orientedFluxMainCurvatureMultiScaleEnhancementFilter->SetHessianToMeasureFilter( orientedFluxMainCurvatureObjectnessFilter );
+	orientedFluxMainCurvatureMultiScaleEnhancementFilter->SetOrientedFluxToMeasureFilter( orientedFluxMainCurvatureObjectnessFilter );
 	multiScaleEnhancementFilter = orientedFluxMainCurvatureMultiScaleEnhancementFilter;		
 	// main function
 	MultiScaleEnhancementFilterSwitchND(
@@ -149,7 +150,6 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 		FilterObjectPtr->SetSigmaMinimum( sigmaMin ); 
 		FilterObjectPtr->SetSigmaMaximum( sigmaMax );  
 		FilterObjectPtr->SetNumberOfSigmaSteps( numberOfScales );
-		FilterObjectPtr->SetUseAFixedSigmaForComputingHessianImage( useAFixedSigmaForComputingHessianImage );
 		FilterObjectPtr->SetGenerateNPlus1DHessianMeasureOutput(generateScaleSpaceTubularityScoreImage);
   
 		if( useAFixedSigmaForComputingHessianImage )
@@ -277,8 +277,8 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_OOFTubularityMeasure_OrientedFlux(J
 
 	
 
-    	env->ReleaseByteArrayElements(jba,jbs,0);
-    	env->ReleaseFloatArrayElements(jbOut, jbOutS,0);
+  env->ReleaseByteArrayElements(jba,jbs,0);
+  env->ReleaseFloatArrayElements(jbOut, jbOutS,0);
 	env->ReleaseStringUTFChars( outputFileName, s );
     return 0;
 }
