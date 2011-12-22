@@ -63,9 +63,6 @@ namespace itk
 		/** Constructor and Destructor. */		
 		CircularShapedNeighborhoodIterCreator();
 		virtual ~CircularShapedNeighborhoodIterCreator(){}
-		CircularShapedNeighborhoodIterCreator(const Self& iter);
-		
-		Self& operator=(const Self& iter);
 			
 		/** Setter/Getter for the radius value. */
 		virtual void SetRadius( CircleRadiusType radius )
@@ -138,6 +135,8 @@ namespace itk
 		virtual void GenerateIterator( IteratorType& neighIter );
 		
 	private:
+		CircularShapedNeighborhoodIterCreator(const Self&); //purposely not implemented
+		void operator=(const Self&);												//purposely not implemented		
 		
 		// Circular neighborhood radius. By default it is 1.0.
 		CircleRadiusType									m_Radius;

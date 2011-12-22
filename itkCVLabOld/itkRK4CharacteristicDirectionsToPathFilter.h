@@ -43,7 +43,7 @@ namespace itk
 	 * following the characteristics direction given by the Eikonal solver
 	 * from the end-point to the global minimum of the arrival function
 	 * (ie. the start-point).
-	 * A Runge Kutta(RK) optimizer of order 4 is used to perform the back-propagation.
+	 * A Runge Kutta optimizer of order 4 is used to perform the back-propagation.
 	 * See: http://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods
 	 *
 	 * The user must provide the following:
@@ -52,9 +52,24 @@ namespace itk
 	 *    2 . At least one path end point
 	 *			 (AddEndPoint() should be called at least once).
 	 *
-	 * The optimizer is hybrid and might use simple discrete descent if:
-	 * (i)  The gradient is null at some point
-	 * (ii) The RK descent is oscillating
+	 * A cost function optimizer may also be provided. If an optimizer
+	 * is not given, a RegularStepGradientDescentOptimizer is created
+	 * with default settings. The optimizer is responsible for
+	 * tracking from the given end-point to the embedded start-point.
+	 * This filter listens for the optimizer Iteration event and
+	 * stores the current position as a point in the current path.
+	 * Therefore, only step-wise optimizers (which report their
+	 * intermediate position at each iteration) are suitable for
+	 * extracting the path. Current suitable optimizers include:
+	 * RegularStepGradientDescentOptimizer and GradientDescentOptimizer.
+	 *
+	 * The TerminationDistance parameter prevents unwanted oscillations
+	 * when closing in on the start-point. The optimizer is terminated
+	 * when the current arrival value is less than TerminationDistance;
+	 * the smaller the value, the closer the path will get to the
+	 * start-point. The default is 1.0. It is recommended that your
+	 * optimizer has a small step size when TerminationDistance is small.
+	 *
 	 *
 	 * \author Fethallah Benmansour, CVLAB EPFL, fethallah[at]gmail.com
 	 *
@@ -163,9 +178,6 @@ namespace itk
 		void SetStep(double step);
 		itkGetMacro(Step, double);
 		
-		void SetOsciallationThreshold(double factor);
-		itkGetMacro(OscillationThreshold, double);
-		
 		/** Get/Set the distance image  */
 		itkSetMacro(Distance, DistanceImagePointer);
 		itkGetMacro(Distance, DistanceImagePointer);
@@ -202,7 +214,6 @@ namespace itk
 		
 		InterpolatorPointer																					m_Interpolator;
 		double																											m_TerminationDistance;
-		double																											m_OscillationThreshold;
 		unsigned int																								m_NbMaxIter;
 		std::vector<PointType>																			m_EndPointList;
 		PointType																										m_StartPoint;

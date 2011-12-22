@@ -27,42 +27,14 @@
 namespace itk
 {
 	template<class TShapedNeighborhoodIter>
-	CircularShapedNeighborhoodIterCreator<TShapedNeighborhoodIter>::
-	CircularShapedNeighborhoodIterCreator()
+	CircularShapedNeighborhoodIterCreator<TShapedNeighborhoodIter>
+	::CircularShapedNeighborhoodIterCreator()
 	{
 		m_Radius = 1.0;
 		m_RadiusInImageCoordinates = false;
 		m_GenerateHalfCircularNeigh = false;
 		m_HalfCircleDirection.Fill( 0.0 );
 		m_HalfCircleDirection[0] = 1.0;
-	}
-
-	template<class TShapedNeighborhoodIter>
-	CircularShapedNeighborhoodIterCreator<TShapedNeighborhoodIter>::
-	CircularShapedNeighborhoodIterCreator(const Self& rhs)
-	{
-		this->m_Radius = rhs.m_Radius;
-		this->m_RadiusInImageCoordinates = rhs.m_RadiusInImageCoordinates;
-		this->m_Region = rhs.m_Region;
-		this->m_Image = rhs.m_Image;
-		this->m_GenerateHalfCircularNeigh = rhs.m_GenerateHalfCircularNeigh;
-		this->m_HalfCircleDirection = rhs.m_HalfCircleDirection;
-	}
-	
-	template<class TShapedNeighborhoodIter>
-	CircularShapedNeighborhoodIterCreator<TShapedNeighborhoodIter>&
-	CircularShapedNeighborhoodIterCreator<TShapedNeighborhoodIter>::
-	operator=(const Self& rhs)
-	{
-		if (this == &rhs)
-			return *this;
-		
-		this->m_Radius = rhs.m_Radius;
-		this->m_RadiusInImageCoordinates = rhs.m_RadiusInImageCoordinates;
-		this->m_Region = rhs.m_Region;
-		this->m_Image = rhs.m_Image;
-		this->m_GenerateHalfCircularNeigh = rhs.m_GenerateHalfCircularNeigh;
-		this->m_HalfCircleDirection = rhs.m_HalfCircleDirection;
 	}
 	
 	template<class TShapedNeighborhoodIter>

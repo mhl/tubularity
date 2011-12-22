@@ -197,7 +197,7 @@ namespace itk
 		 * Scale and shift the radius values of the path. 
 		 * The new values becomes r_new = scale * r_old + shift.
 		 */
-		virtual void ScaleAndShiftRadii(double scaleFactor,
+		virtual void ScaleAndShiftRadii(double scaleFactor = 1,
 																		double shift = 0);
 		
 		/** 
@@ -205,23 +205,8 @@ namespace itk
 		 * defined in the continuous image domain. The new coordinate values 
 		 * becomes x_new = scale * x_old + shift.
 		 */
-		virtual void ScaleAndShiftVertices(double scaleFactor,
+		virtual void ScaleAndShiftVertices(double scaleFactor = 1,
 																			 double shift = 0);
-		
-		/** 
-		 * Scales the radius values linearly using the new radius values 
-		 * for the start and the end vertex. 
-		 * The new values becomes 
-		 * r_new(x) = (r_new(x_start) / r_old(x_start)) * (1 - (dist(x)/path_length)) + 
-		 * (r_new(x_end) / r_old(x_end)) * ((dist(x)/path_length)).
-		 * 
-		 * where dist(x) is the distance of point x from the start of the path in the
-		 * world coordinates.
-		 */
-		template<class TImage>
-		void ScaleRadiiLinearly(RadiusType startVectexRadius,
-														RadiusType endVectexRadius,
-														const TImage* image);
 		
 		/** 
 		 * Get the list of unique image indices that this path traverses.
@@ -1365,14 +1350,16 @@ namespace itk
 			
 		}
 		
-
+		
+		
+		// TODO Create a path to path filter from this function!
 		template<class TImage>
-		void  ExtractPathSegmentIntervalsSymmetric(std::vector< std::pair<InputType, InputType> >& pathSegmentIntervalArray,
-																							 double pathSegmentLengthInWorldCoords,
-																							 double	stepSizeInWorldCoords,
-																							 const TImage* image) const
+		void  ExtractPathSegmentsSymmetric(std::vector<Pointer>& pathSegmentArray,
+																			 double pathSegmentLengthInWorldCoords,
+																			 double stepSizeInWorldCoords,
+																			 const TImage* image) const
 		{
-			pathSegmentIntervalArray.clear();
+			pathSegmentArray.clear();
 			
 			double pathLength = this->GetLengthInWorldCoords(image);
 			
@@ -1380,8 +1367,8 @@ namespace itk
 			// segment length. If so, add the whole path to the list.
 			if( pathLength - pathSegmentLengthInWorldCoords < m_Epsilon )
 			{
-				pathSegmentIntervalArray.push_back(std::make_pair(this->StartOfInput(),
-																													this->EndOfInput()));
+				Pointer pathSegment = this->Clone();
+				pathSegmentArray.push_back(pathSegment);
 				return;
 			}
 			
@@ -1411,7 +1398,7 @@ namespace itk
 																					 traversedDistance) )
 				{
 					// At this point, we reach end of the path!
-					
+								
 					// If segment length is larger than the step size, try to span the 
 					// tail of the path so that we cover the path entirely, while 
 					// keeping the length of the last segment at 
@@ -1427,15 +1414,18 @@ namespace itk
 																					pathSegmentEndPoint,
 																					traversedDistance);
 						
-						pathSegmentIntervalArray.push_back(std::make_pair(this->StartOfInput(), 
-																															pathSegmentEndPoint));
+						Pointer pathSegment = Self::New();
+						SubPath(this->StartOfInput(), pathSegmentEndPoint, pathSegment);
+						pathSegmentArray.push_back(pathSegment);
 					}
 					
 					break;
 				}
 				
 				// Create the path segment and add it to the list.
-				pathSegmentIntervalArray.push_back(std::make_pair(pathSegmentStartPoint, i));
+				Pointer pathSegment = Self::New();
+				SubPath(pathSegmentStartPoint, i, pathSegment);
+				pathSegmentArray.push_back(pathSegment);
 				
 				// Get the end point for the next segment by traversing step 
 				// size along the path in the backward direction.
@@ -1450,7 +1440,7 @@ namespace itk
 				}
 			}
 			// Reverse the array to get the correct ordering of segments.
-			std::reverse(pathSegmentIntervalArray.begin(), pathSegmentIntervalArray.end());
+			std::reverse(pathSegmentArray.begin(), pathSegmentArray.end());
 			
 			
 			// Determine the start point for starting from the middle and going in the 
@@ -1499,15 +1489,18 @@ namespace itk
 																						pathSegmentStartPoint,
 																						traversedDistance);
 							
-							pathSegmentIntervalArray.push_back(std::make_pair(pathSegmentStartPoint, 
-																																this->EndOfInput()));
+							Pointer pathSegment = Self::New();
+							SubPath(pathSegmentStartPoint, this->EndOfInput(), pathSegment);
+							pathSegmentArray.push_back(pathSegment);
 						}
 						
 						break;
 					}
 					
 					// Create the path segment and add it to the list.
-					pathSegmentIntervalArray.push_back(std::make_pair(i, pathSegmentEndPoint));
+					Pointer pathSegment = Self::New();
+					SubPath(i, pathSegmentEndPoint, pathSegment);
+					pathSegmentArray.push_back(pathSegment);
 					
 					// Get the start point for the next segment by traversing step 
 					// size along the path in the forward direction.
@@ -1522,32 +1515,11 @@ namespace itk
 					}
 				}
 			}
+			
 		}
 		
-		template<class TImage>
-		void  ExtractPathSegmentsSymmetric(std::vector<Pointer>& pathSegmentArray,
-																			 double pathSegmentLengthInWorldCoords,
-																			 double stepSizeInWorldCoords,
-																			 const TImage* image) const
-		{
-			std::vector< std::pair<InputType, InputType> > pathSegmentIntervalArray;
-			
-			ExtractPathSegmentIntervalsSymmetric(pathSegmentIntervalArray,
-																					 pathSegmentLengthInWorldCoords,
-																					 stepSizeInWorldCoords,
-																					 image);
-			
-			pathSegmentArray.clear();
-			for(typename std::vector< std::pair<InputType, InputType> >::iterator it = 
-					pathSegmentIntervalArray.begin();
-					it != pathSegmentIntervalArray.end();
-					it++)
-			{
-				Pointer pathSegment = Self::New();
-				SubPath(it->first, it->second, pathSegment);
-				pathSegmentArray.push_back(pathSegment);
-			}
-		}
+		
+		
 		
 		
 		// Returns true if the specified distance has been sucessfully traversed

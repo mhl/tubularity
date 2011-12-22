@@ -961,55 +961,6 @@ namespace itk
 		}
 	}
 	
-	template <unsigned int VDimension>
-	template<class TImage>
-	void 
-	PolyLineParametricPathExtended<VDimension>::	
-	ScaleRadiiLinearly(RadiusType startVertexRadius,
-										 RadiusType endVertexRadius,
-										 const TImage* image)
-	{
-		if( m_VertexList->Size() < 2 )
-		{
-			if( m_VertexList->Size() == 1 )
-			{
-				// Discard the end vertex radius since we have only a single vertex.
-				m_RadiusList.front() = startVertexRadius;
-			}
-			
-			return;
-		}
-		
-		// Compute the radius multiplicative factor for the start and the end vertices.
-		double startVertexMultipFactor = 
-		static_cast<double>(startVertexRadius) / static_cast<double>(m_RadiusList.front());
-		double endVertexMultipFactor = 
-		static_cast<double>(endVertexRadius) / static_cast<double>(m_RadiusList.back());
-		
-		PointType prevPoint;
-		PointType currentPoint;
-		double dist = 0;
-		m_RadiusList.front() = startVertexRadius;
-		double pathLength = this->GetLengthInWorldCoords(image);
-		
-		image->TransformContinuousIndexToPhysicalPoint(m_VertexList->ElementAt(0), prevPoint);
-		typename VertexListType::ElementIdentifier noOfVertices = m_VertexList->Size();
-		for(typename VertexListType::ElementIdentifier i = 1;
-				i < (noOfVertices - 1); 
-				i++)
-		{
-			image->TransformContinuousIndexToPhysicalPoint(m_VertexList->ElementAt(i), currentPoint);
-			dist += currentPoint.EuclideanDistanceTo(prevPoint);
-			
-			double distRatio = dist / pathLength;
-			
-			m_RadiusList[i] *= (startVertexMultipFactor * (1.0 - distRatio) + 
-													endVertexMultipFactor * distRatio);
-			
-			prevPoint = currentPoint;
-		}
-		m_RadiusList.back() = endVertexRadius;
-	}
 	
 	template <unsigned int VDimension>
 	template<class TImage>

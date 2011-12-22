@@ -30,9 +30,8 @@ namespace itk
 		m_TerminationDistance = 0.5;
 		m_CurrentOutput = 0;
 		m_Interpolator = InterpolatorType::New();
-		m_Step = 1.0;
+		m_Step = 1;
 		m_NbMaxIter = 50000;
-		m_OscillationThreshold = 0.001;
 	}
 	
 	
@@ -92,15 +91,24 @@ namespace itk
 	RK4CharacteristicDirectionsToPathFilter<TInputImage,TOutputPath>
 	::SetStep( double step )
 	{
+		
+		SpacingType spacing;
 		if ( this->GetInput() )
 		{
-			double minSpacing = (this->GetInput()->GetSpacing()).GetVnlVector().min_value();
+			spacing = this->GetInput()->GetSpacing();
+			double minSpacing  = spacing[0];
+			for (unsigned int i = 1; i < SetDimension; i++)
+			{
+				minSpacing = vnl_math_min(minSpacing, spacing[i]);
+			}
+			
 			m_Step = step*minSpacing;
 		}
-		else
-		{
-			itkExceptionMacro( "set the input image first !!" );
+		else {
+			std::cerr << "set the input image first !!" << std::endl;
+			exit(-2);
 		}
+		
 	}
 	
 	/**
@@ -111,36 +119,26 @@ namespace itk
 	RK4CharacteristicDirectionsToPathFilter<TInputImage,TOutputPath>
 	::SetTerminationDistanceFactor( double factor )
 	{
+		
+		SpacingType spacing;
 		if ( this->GetInput() )
 		{
-			double maxSpacing = (this->GetInput()->GetSpacing()).GetVnlVector().max_value();
+			spacing = this->GetInput()->GetSpacing();	
+			double maxSpacing  = spacing[0];
+			for (unsigned int i = 1; i < SetDimension; i++)
+			{
+
+				maxSpacing = vnl_math_max(maxSpacing, spacing[i]);
+			}
+			
 			m_TerminationDistance = factor*maxSpacing;
 		}
-		else
-		{
-			itkExceptionMacro( "set the input image first !!" );
-		}	
-	}
-	
-	/**
-	 *
-	 */
-	template <class TInputImage, class TOutputPath>
-	void
-	RK4CharacteristicDirectionsToPathFilter<TInputImage,TOutputPath>
-	::SetOsciallationThreshold( double factor )
-	{
-		if ( this->GetInput() )
-		{
-			double minSpacing = (this->GetInput()->GetSpacing()).GetVnlVector().min_value();
-			m_OscillationThreshold = factor*minSpacing;
+		else {
+			std::cerr << "set the input image first !!" << std::endl;
+			exit(-2);
 		}
-		else
-		{
-			itkExceptionMacro( "set the input image first !!" );
-		}
+		
 	}
-	
 	
 	/**
 	 *
@@ -283,6 +281,7 @@ namespace itk
 		for ( unsigned int n=0; n < numberOfOutputs; n++ )
     {
 			// Set the output	index
+			// NOTE: m_CurrentOutput is used in Execute() and GetNextEndPoint()
 			m_CurrentOutput = n;
 			
 			// Make the output
@@ -312,18 +311,18 @@ namespace itk
 				input->TransformPhysicalPointToContinuousIndex( currentPoint, cindex );
 				
 				// Check that the new position is inside the image domain
-				if( !IsCurrentPointInsideTheDomain( cindex ))
-				{ 
-					itkWarningMacro(" current point was outside domain, index values saturated to keep them inside the domain");
-				}
+				IsCurrentPointInsideTheDomain( cindex );
+				/*{ TODO
+					itkWarningMacro("current point was outside domain, index values saturated to keep them inside the domain");
+					std::cout << "after saturation, index location is is located at: " << cindex << std::endl;
+				}*/
 				
 				// Add point as vertex in path
 				output->AddVertex( cindex );
 				
-				//================================================
+				//==================================================================================================
 				// start the order 4  Runge-Kutta descent step
-				//================================================
-				// is any of the intermediate gradient equal to zero ?
+				//==================================================================================================
 				bool gradientIsZero = false;
 				// Get the steepest descent direction
 				
@@ -412,7 +411,7 @@ namespace itk
 				//If the slope is not zero
 				if(!gradientIsZero)
 				{ // that means that the slope of Runge Kutta descent was not zero
-					// Does not guarantee non oscillatory behaviour
+					// Does not guarantee non oscillations
 					for (unsigned int d = 0; d < SetDimension; d++) 
 					{
 						currentPoint[d] = currentPoint[d] - m_Step*slope[d];
@@ -420,9 +419,9 @@ namespace itk
 				}
 				else
 				{  // the final slope or one of the intermediate gradients is zero
-					 // ONe of the reasons might be that the used precision is not enough
+					 // The used precision is not enough
 					 // In that case, we just take the best point among neighboors, using the distance (objective map) values
-					itkWarningMacro("Gradient is null at this point, this's likely due to a precision issue, current descent step will be done discretely ");
+					itkWarningMacro("Gradient is null at this point, this's likely due to a precision issue, current descent step will be done discreetly ");
 					ContinuousIndexType nextCIndex;
 					this->MakeDiscreteDescentStep(cindex, nextCIndex);
 					cindex = nextCIndex;
@@ -441,16 +440,17 @@ namespace itk
 				bool isOscillating = false;
 				if (count >= 3) 
 				{
-					// compute the distance from the latest point to the latest 3 added points.
 					for (unsigned int i = 0; i < 3; i++) 
 					{
-						
+						// compute the distance from the latest point to the latest 3 added points.
+						double distanceToPrevious = 0;
 						ContinuousIndexType prevCIndex = output->GetVertexList()->GetElement(count-1-i);
-						PointType prevPoint;
-						
-						input->TransformContinuousIndexToPhysicalPoint( prevCIndex, prevPoint );
-						double distanceToPrevious = prevPoint.EuclideanDistanceTo( currentPoint );
-						if( distanceToPrevious < m_OscillationThreshold )
+						for(unsigned int d= 0; d < SetDimension; d++)
+						{
+							distanceToPrevious += (prevCIndex[d] - cindex[d])*(prevCIndex[d] - cindex[d]);
+						}
+						distanceToPrevious = sqrt(distanceToPrevious);
+						if(distanceToPrevious < 0.001)// TODO: improve the criterion
 						{
 							isOscillating = true;
 						}
@@ -503,7 +503,6 @@ namespace itk
 		os << indent << "Interpolator"					<< m_Interpolator << std::endl;
 		os << indent << "Step"									<< m_Step << std::endl;
 		os << indent << "NbMaxIter"							<< m_NbMaxIter << std::endl;
-		os << indent << "Oscillation Threshold"	<< m_OscillationThreshold << std::endl;
 		
 	}
 	
