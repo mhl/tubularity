@@ -411,7 +411,7 @@ namespace itk
 			conv->SetSigma0( m_FixedSigmaForHessianImage );
 			
 			std::cout << "at scale :" << m_Sigmas[i] << std::endl;
-			/** TODO: some justifications for themodifid  scale */
+			/** TODO Feth: some justifications for themodified  scale */
 			conv->SetRadius( vcl_sqrt( m_Sigmas[i] * m_Sigmas[i] + m_FixedSigmaForHessianImage*m_FixedSigmaForHessianImage) );
 			itk::TimeProbe time;
 			time.Start();
@@ -596,7 +596,7 @@ namespace itk
 	<TInputImage,THessianImage,TScaleImage,THessianToMeasureFilter,TOutputNDImage>
 	::GetNPlus1DImageOutput()
 	{
-		return static_cast<const OutputNPlus1DImageType*>(this->ProcessObject::GetOutput(3));
+		return static_cast<OutputNPlus1DImageType*>(this->ProcessObject::GetOutput(3));
 	}
 	
 	template <typename TInputImage,

@@ -232,7 +232,8 @@ namespace itk
 		FastMarchingFilterPointer fastMarching = FastMarchingFilterType::New();
 		fastMarching->SetGenerateGradientImage(true);
 		fastMarching->SetInput( input );
-		fastMarching->SetScaleSpeedFactor(m_ScaleSpeedFactor);
+		//TODO
+		//fastMarching->SetScaleSpeedFactor(m_ScaleSpeedFactor);
 		
 		// Confine the processing to the given region.
 		fastMarching->SetOverrideOutputInformation( true );

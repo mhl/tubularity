@@ -28,7 +28,7 @@
 #include "itkPolyLineParametricPathExtended.h"
 #include "itkCommand.h"
 #include "itkImageToPathFilter.h"
-#include "itkFastMarchingUpwindGradientImageFilter2.h"
+#include "itkFastMarchingUpwindGradientImageFilter.h"
 #include "itkMultiplyByConstantImageFilter.h"
 #include "itkRK4CharacteristicDirectionsToPathFilter.h"
 
@@ -86,7 +86,7 @@ namespace itk
 		typedef Size< SetDimension >																SizeType;
 		
 		/** Declare the fast marching filter type */
-		typedef  itk::FastMarchingUpwindGradientImageFilter2
+		typedef  itk::FastMarchingUpwindGradientImageFilter
 		< InputImageType, InputImageType >													FastMarchingFilterType;
 		typedef typename FastMarchingFilterType::Pointer						FastMarchingFilterPointer;
 		
