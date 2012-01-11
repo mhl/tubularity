@@ -20,6 +20,8 @@
 
 #include "itkFFTOrientedFluxMatrixImageFilter.h"
 
+#include <itkImageFileWriter.h>
+
 namespace itk
 {
 	
@@ -149,7 +151,7 @@ namespace itk
 		/**
 		 * 2 corners per dimension except for the first one.
 		 */
-		unsigned int nbCorners = pow(2, ImageDimension-1);
+		unsigned int nbCorners = pow(float(2),float( ImageDimension-1));
 		
 		
 		typedef std::vector<IndexType> listOfIndexCorners;
@@ -189,6 +191,9 @@ namespace itk
 			}
 			listOfIdxC.push_back(corner);
 		}
+			
+			
+
 		
 		// Get the physical location of these corners
 		PointType pt;
@@ -251,6 +256,15 @@ namespace itk
 			it.Set(value);
 			++it;
 		}
+		//
+		typedef ImageFileWriter<ComplexImageType> WriterType;
+		typename WriterType::Pointer writer  = WriterType::New();
+		if(derivA == 2 && derivB == 2)
+		{
+			writer->SetInput( kernel );
+			writer->SetFileName("kernel.nrrd");
+			writer->Update();
+		}
 	}
 	
 	/**
@@ -282,7 +296,7 @@ namespace itk
 		// Fake a kernel(wrt to the input scale) and pad the input image accordingly
 		// TODO: this one might be replaced by an other padding function that does not require a kernel but just the input image and the pdding size
 		float minSpacing   = input->GetSpacing().GetVnlVector().min_value();
-		int kernelPixelSize = round( this->GetRadius() / minSpacing ) + 1;
+		int kernelPixelSize = 4;//Math::Round<int>( this->GetRadius() / minSpacing ) + 1;
 		IndexType index; 
 		index.Fill(-kernelPixelSize);
 		SizeType size;
@@ -350,8 +364,8 @@ namespace itk
 				crop->Update();
 				
 				ImageRegionIteratorWithIndex< InternalImageType > it(crop->GetOutput(), crop->GetOutput()->GetRequestedRegion());
-				ImageRegionIteratorWithIndex< OutputImageAdaptorType > ot( m_ImageAdaptor, m_ImageAdaptor->GetRequestedRegion());
 				m_ImageAdaptor->SelectNthElement( element++ );
+				ImageRegionIteratorWithIndex< OutputImageAdaptorType > ot( m_ImageAdaptor, m_ImageAdaptor->GetRequestedRegion());
 				
 				it.GoToBegin();
 				ot.GoToBegin();
