@@ -296,7 +296,7 @@ namespace itk
 		// Fake a kernel(wrt to the input scale) and pad the input image accordingly
 		// TODO: this one might be replaced by an other padding function that does not require a kernel but just the input image and the pdding size
 		float minSpacing   = input->GetSpacing().GetVnlVector().min_value();
-		int kernelPixelSize = 4;//Math::Round<int>( this->GetRadius() / minSpacing ) + 1;
+		int kernelPixelSize = Math::Round<int>( this->GetRadius() / minSpacing ) + 1;
 		IndexType index; 
 		index.Fill(-kernelPixelSize);
 		SizeType size;
