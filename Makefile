@@ -79,6 +79,8 @@ $(error)
 endif
 
 LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
+	-luuid \
+	-lITKBasicFilters \
 	-lITKNumerics \
 	-lITKIO \
 	-lITKNrrdIO \
