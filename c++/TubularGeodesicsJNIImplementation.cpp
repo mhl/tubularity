@@ -7,8 +7,16 @@
 #include "itkNumericTraits.h"
 #include "itkImageFileReader.h"
 #include "itkTubularMetricToPathFilter.h"
+#include <itkMultiThreader.h>
+#include <itkSemaphore.h>
+#include <itkFastMutexLock.h>
 #include "vnl/vnl_math.h"
+#include <jni.h>
+#include <unistd.h>
 
+using std::cout;
+using std::endl;
+using std::flush;
 
 // Consts and typedefs
 const unsigned int Dimension = 3;
@@ -33,6 +41,35 @@ TubularityScoreImageType::Pointer tubularityScore;
 bool isTubularityScoreLoaded = false;
 std::vector< float > Outputpath;
 
+JavaVM * jvmHelloGoodbye = NULL;
+jobject pathResultObject;
+jobject javaSearchThread;
+itk::FastMutexLock::Pointer globalMutex = itk::FastMutexLock::New();
+bool pleaseStop;
+
+JNIEXPORT void JNICALL
+reportProgress(JNIEnv *env, jobject obj, jfloat proportionDone)
+{
+  jclass cls = env->GetObjectClass(obj);
+  jmethodID mid = env->GetMethodID(cls, "reportProgress", "(F)V");
+  if (! mid) {
+      cout << "Failed to find the reportProgress method" << endl;
+      return;
+  }
+  env->CallVoidMethod(obj, mid, proportionDone);
+}
+
+JNIEXPORT void JNICALL
+reportFinished(JNIEnv *env, jobject obj, jboolean success)
+{
+  jclass cls = env->GetObjectClass(obj);
+  jmethodID mid = env->GetMethodID(cls, "reportFinished", "(Z)V");
+  if (! mid) {
+      cout << "Failed to find the reportFinished method" << endl;
+      return;
+  }
+  env->CallVoidMethod(obj, mid, success);
+}
 
 // For a Given Location, Get the Optimal scale, 
 /**
@@ -121,7 +158,7 @@ Execute( float* pt1, float* pt2)
   subRegionToProcess.SetSize( sizeSubRegion );
 
   pathFilter->SetRegionToProcess(subRegionToProcess);
-  std::cout << "sub region to process" << subRegionToProcess << std::endl;
+  cout << "sub region to process" << subRegionToProcess << endl;
   pathFilter->Update();
   
 	SpacingType spacing = tubularityScore->GetSpacing();
@@ -162,7 +199,7 @@ void setSuccess(JNIEnv * env,
                                      "setSuccess",
                                      "(Z)V");
     if (!mid) {
-        std::cout << "Failed to find the setSuccess method";
+        cout << "Failed to find the setSuccess method" << endl;
         return;
     }
 
@@ -186,7 +223,7 @@ void setErrorMessage(JNIEnv * env,
                                      "setErrorMessage",
                                      "(Ljava/lang/String;)V");
     if (!mid) {
-        std::cout << "Failed to find the setErrorMessage method";
+        cout << "Failed to find the setErrorMessage method" << endl;
         return;
     }
 
@@ -204,70 +241,145 @@ void setErrorMessage(JNIEnv * env,
                pathResultClass);
 }
 
-/*
- * Class:     FijiITKInterface_TubularGeodesics
- * Method:    getPathResult
- * Signature: (Ljava/lang/String;[F[FLFijiITKInterface/PathResult;)V
- */
-JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_getPathResult
- (JNIEnv * env,
-  jobject ignored,
-  jstring jTubularityFilename,
-  jfloatArray jPoint1,
-  jfloatArray jPoint2,
-  jobject pathResultObject)
-{
+class UserData {
+
+public:
+    jstring jTubularityFilename;
+    jfloatArray jPoint1;
+    jfloatArray jPoint2;
+    itk::Semaphore * semaphoreUserDataCopied;
+};
+
+void releaseJVM(UserData * userData) {
+    delete userData;
+    jvmHelloGoodbye->DetachCurrentThread();
+    globalMutex->Lock();
+    jvmHelloGoodbye = NULL;
+    globalMutex->Unlock();
+}
+
+ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
+
+    JNIEnv * env;
+    UserData * userData = NULL;
+
+    // From: http://www.adamish.com/blog/archives/327
+
+    int getEnvStat = jvmHelloGoodbye->GetEnv((void **)&env, JNI_VERSION_1_6);
+    cout << "got back env" << env << endl;
+    if (getEnvStat == JNI_EDETACHED) {
+        cout << "GetEnv: not attached" << endl;
+        cout << "jvm is: " << jvmHelloGoodbye << endl;
+        if (jvmHelloGoodbye->AttachCurrentThread((void **)&env, NULL) != 0) {
+            cout << "Failed to attach" << endl;
+        }
+        cout << "attached now!!" << endl;
+    } else if (getEnvStat == JNI_OK) {
+        //
+    } else if (getEnvStat == JNI_EVERSION) {
+        cout << "GetEnv: version not supported" << endl;
+    }
+
+    cout << "In a different thread..." << endl;
+
+    itk::MultiThreader::ThreadInfoStruct* threadInfo = static_cast<itk::MultiThreader::ThreadInfoStruct*>(param);
+
+    cout << "Got threadInfo" << endl;
+
+    if (!threadInfo)  {
+        cout << "Failed to get the thread info" << endl;
+        releaseJVM(userData);
+        return ITK_THREAD_RETURN_VALUE;
+    }
+
+    cout << "Going to get userData" << endl;
+
+    userData = static_cast<UserData*>(threadInfo->UserData);
+
+    cout << "Got userData" << endl;
+
+    cout << "pathResultObject is: " << pathResultObject << endl;
+
+    // Generate global references for the two objects that were passed in:
 
     jclass pathResultClass = env->GetObjectClass(pathResultObject);
 
+    cout << "Got pathResultClass" << endl;
+
     // Check that the float arrays are of the right length:
 
-    int pt1Length = env->GetArrayLength(jPoint1);
-    int pt2Length = env->GetArrayLength(jPoint2);
+    int pt1Length = env->GetArrayLength(userData->jPoint1);
+    cout << "got one arraylength..." << endl;
+    int pt2Length = env->GetArrayLength(userData->jPoint2);
+
+    cout << "Got float array lengths" << endl;
 
     if (pt1Length != 3) {
+        cout << "wrong length of pt1" << endl;
+
         setErrorMessage(env,
                         "pt1 was not of length 3",
                         pathResultObject,
                         pathResultClass);
-        return;
+        releaseJVM(userData);
+        return ITK_THREAD_RETURN_VALUE;
     }
 
     if (pt2Length != 3) {
+        cout << "wrong length of pt2" << endl;
         setErrorMessage(env,
                         "pt2 was not of length 3",
                         pathResultObject,
                         pathResultClass);
-        return;
+        releaseJVM(userData);
+        return ITK_THREAD_RETURN_VALUE;
     }
 
     // And convert them to C types:
 
+    cout << "converting to c types" << endl;
+
     jboolean isPoint1Copy, isPoint2Copy;
-    jfloat * pt1 = env->GetFloatArrayElements(jPoint1, &isPoint1Copy);
-    jfloat * pt2 = env->GetFloatArrayElements(jPoint2, &isPoint2Copy);
+    jfloat * pt1 = env->GetFloatArrayElements(userData->jPoint1, &isPoint1Copy);
+    jfloat * pt2 = env->GetFloatArrayElements(userData->jPoint2, &isPoint2Copy);
 
-    // Some debugging, just print out the start and end points:
+    float copiedPt1[3], copiedPt2[3];
 
     for(int i = 0; i < 3; ++i ) {
-        std::cout << "pt1[" << i << "] is " << pt1[i] << std::endl;
+        copiedPt1[i] = pt1[i];
+        copiedPt2[i] = pt2[i];
     }
-    for(int i = 0; i < 3; ++i ) {
-        std::cout << "pt2[" << i << "] is " << pt2[i] << std::endl;
-    }
+
+    env->ReleaseFloatArrayElements(userData->jPoint1, pt1, 0);
+    env->ReleaseFloatArrayElements(userData->jPoint2, pt2, 0);
 
     // Now get the filename:
 
-    const char * filename = env->GetStringUTFChars(jTubularityFilename, NULL);
+    cout << "getting the filename" << endl;
+
+    const char * filename = env->GetStringUTFChars(userData->jTubularityFilename, NULL);
+
+    cout << "got the filename" << endl;
+
     if (!filename) {
         setErrorMessage(env,
                         "Failed to convert the filename",
                         pathResultObject,
                         pathResultClass);
-        env->ReleaseFloatArrayElements(jPoint1, pt1, 0);
-        env->ReleaseFloatArrayElements(jPoint2, pt2, 0);
-        return;
+
+        releaseJVM(userData);
+        return ITK_THREAD_RETURN_VALUE;
     }
+
+    cout << "going to up the semaphore " << userData->semaphoreUserDataCopied << " now" << endl;
+
+    // Now we can safely allow the function that spawned this thread
+    // to return:
+
+    userData->semaphoreUserDataCopied->Up();
+
+    // ------------------------------------------------------------------------
+
     /**
      * Fethallah 
      * First, check if the tubularity score image is loaded.
@@ -283,7 +395,7 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_getPathResult
 	  }
 	catch(itk::ExceptionObject &e)   
 	  {      
-	    std::cerr << e << std::endl; 
+	    std::cerr << e << endl;
 	  }
 
 	tubularityScore = reader->GetOutput();
@@ -296,7 +408,7 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_getPathResult
      * the start and end points are given
      * One just needs to call the Execute method and convert the output
      */
-    Execute( pt1, pt2 );
+    Execute( copiedPt1, copiedPt2 );
 
     long nb_points  = Outputpath.size() / 4;
     float * pathPoints = new float[nb_points*4];
@@ -309,11 +421,10 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_getPathResult
 
     jfloatArray jResultArray = env->NewFloatArray(nb_points * 4);
     if (!jResultArray) {
-        std::cout << "Failed to allocate a new Java float array";
-        env->ReleaseFloatArrayElements(jPoint1, pt1, 0);
-        env->ReleaseFloatArrayElements(jPoint2, pt2, 0);
-        env->ReleaseStringUTFChars(jTubularityFilename, filename);
-        return;
+        cout << "Failed to allocate a new Java float array" << endl;
+        env->ReleaseStringUTFChars(userData->jTubularityFilename, filename);
+        releaseJVM(userData);
+        return ITK_THREAD_RETURN_VALUE;
     }
 
     env->SetFloatArrayRegion(jResultArray,
@@ -326,11 +437,10 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_getPathResult
                                          "setPath",
                                          "([F)V");
         if (!mid) {
-            std::cout << "Failed to find the setPath method";
-            env->ReleaseFloatArrayElements(jPoint1, pt1, 0);
-            env->ReleaseFloatArrayElements(jPoint2, pt2, 0);
-            env->ReleaseStringUTFChars(jTubularityFilename, filename);
-            return;
+            cout << "Failed to find the setPath method" << endl;
+            env->ReleaseStringUTFChars(userData->jTubularityFilename, filename);
+            releaseJVM(userData);
+            return ITK_THREAD_RETURN_VALUE;
         }
 
         env->CallVoidMethod(pathResultObject,
@@ -338,9 +448,15 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_getPathResult
                             jResultArray);
     }
 
+    cout << "going to deletelocalref" << endl;
+
     env->DeleteLocalRef(jResultArray);
 
+    cout << "going to delete[] pathPoints" << endl;
+
     delete [] pathPoints;
+
+    cout << "going to setSuccess" << endl;
 
     // ------------------------------------------------------------------------
 
@@ -349,9 +465,79 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_getPathResult
                pathResultObject,
                pathResultClass);
 
-    /* Release anything allocated... */
+    reportFinished(env,
+                   javaSearchThread,
+                   true);
 
-    env->ReleaseFloatArrayElements(jPoint1, pt1, 0);
-    env->ReleaseFloatArrayElements(jPoint2, pt2, 0);
-    env->ReleaseStringUTFChars(jTubularityFilename, filename);
+    env->ReleaseStringUTFChars(userData->jTubularityFilename, filename);
+
+    /* Now we can delete the global references to the two objects that
+       were passed in: */
+    cout << "going to release pathResultObject" << endl;
+    env->DeleteGlobalRef(pathResultObject);
+    cout << "going to release javaSearchThread" << endl;
+    env->DeleteGlobalRef(javaSearchThread);
+
+    cout << "going to releaseJVM" << endl;
+    releaseJVM(userData);
+    return ITK_THREAD_RETURN_VALUE;
+}
+
+/*
+ * Class:     FijiITKInterface_TubularGeodesics
+ * Method:    startSearch
+ * Signature: (Ljava/lang/String;[F[FLtracing/PathResult;Ltracing/TubularGeodesicsTracer;)V
+ */
+JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_startSearch
+ (JNIEnv * env,
+  jobject ignored,
+  jstring jTubularityFilename,
+  jfloatArray jPoint1,
+  jfloatArray jPoint2,
+  jobject passedPathResultObject,
+  jobject passedJavaSearchThread)
+{
+    globalMutex->Lock();
+    cout << "jvm is: " << jvmHelloGoodbye << endl << flush;
+    if (jvmHelloGoodbye) {
+        reportFinished(env, passedJavaSearchThread, false);
+        globalMutex->Unlock();
+        env->DeleteGlobalRef(pathResultObject);
+        env->DeleteGlobalRef(javaSearchThread);
+        return;
+    } else {
+        env->GetJavaVM(&jvmHelloGoodbye);
+        globalMutex->Unlock();
+    }
+
+    /* Keep these two in global variables, now that we know we're the
+       only thread running (due to checking jvm under a mutex): */
+    pathResultObject = env->NewGlobalRef(passedPathResultObject);
+    javaSearchThread = env->NewGlobalRef(passedJavaSearchThread);
+
+    pleaseStop = false;
+
+    /* The code here that spawns this as a separate thread is based on
+       the example here:
+       http://docs.mitk.org/nightly-qt4/mitkITKThreadingTest_8cpp_source.html
+    */
+
+    itk::MultiThreader::Pointer threader = itk::MultiThreader::New();
+    itk::Semaphore::Pointer semaphorePointer = itk::Semaphore::New();
+    semaphorePointer->Initialize(0);
+
+    UserData * userData = new UserData();
+    userData->jTubularityFilename = jTubularityFilename;
+    userData->jPoint1 = jPoint1;
+    userData->jPoint2 = jPoint2;
+    userData->semaphoreUserDataCopied = semaphorePointer.GetPointer();
+
+    itk::ThreadFunctionType functionPointer = &ThreadedFunction;
+    int threadID = threader->SpawnThread( functionPointer, userData );
+
+    // Wait until the userData has been copied by the other thread:
+    semaphorePointer->Down();
+
+    /* Now we know that the userData has been copied, and the thread
+       is running, so we can leave the function. */
 }

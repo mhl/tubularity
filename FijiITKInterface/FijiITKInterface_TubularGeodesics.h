@@ -33,11 +33,11 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_TubularGeodesics_OrientedFlux
 
 /*
  * Class:     FijiITKInterface_TubularGeodesics
- * Method:    getPathResult
- * Signature: (Ljava/lang/String;[F[FLtracing/PathResult;)V
+ * Method:    startSearch
+ * Signature: (Ljava/lang/String;[F[FLtracing/PathResult;Ltracing/TubularGeodesicsTracer;)V
  */
-JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_getPathResult
-  (JNIEnv *, jobject, jstring, jfloatArray, jfloatArray, jobject);
+JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_startSearch
+  (JNIEnv *, jobject, jstring, jfloatArray, jfloatArray, jobject, jobject);
 
 #ifdef __cplusplus
 }
