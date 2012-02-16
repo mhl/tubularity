@@ -79,15 +79,17 @@ $(error)
 endif
 
 LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
+	-lITKNumerics \
 	-lITKIO \
+	-lITKNrrdIO \
+	-litkgdcm \
 	-lITKAlgorithms \
 	-litkopenjpeg \
 	-litkpng \
-	-litkgdcm \
+	-litktiff \
 	-litkjpeg8 \
 	-litkjpeg16 \
 	-litkjpeg12 \
-	-litktiff \
 	-litkzlib \
 	-lITKniftiio \
 	-lITKSpatialObject \
@@ -95,16 +97,14 @@ LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
 	-lITKDICOMParser \
 	-lITKEXPAT \
 	-lITKznz \
-	-lITKNrrdIO \
 	-lITKStatistics \
 	-litkNetlibSlatec \
-	-lITKNumerics \
+	-lITKCommon \
+	-litkvnl_inst \
+	-litkvnl_algo \
 	-litkv3p_netlib \
 	-litkvnl \
 	-litkvcl \
-	-litkvnl_algo \
-	-litkvnl_inst \
-	-lITKCommon \
 	-litksys \
 	-lpthread \
 	-lm \
