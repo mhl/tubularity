@@ -46,6 +46,10 @@ ifndef ITK_LIBS
 ITK_LIBS=$(ITK)/bin
 endif
 
+ifndef FFTW_PREFIX
+FFTW_PREFIX=/usr/lib/
+endif
+
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 uname_M := $(shell sh -c 'uname -m 2>/dev/null || echo not')
 
@@ -112,7 +116,10 @@ LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
 	-lm \
 	-ldl
 
-LINK_LIBRARIES_FFTW=-L/usr/local/lib/ \
+FFTW_INCLUDE=$(FFTW_PREFIX)/include/
+FFTW_LIB=$(FFTW_PREFIX)/lib/
+
+LINK_LIBRARIES_FFTW=-L$(FFTW_LIB) \
 	 -lfftw3 \
 	 -lfftw3f \
 	 -lfftw3_threads \
@@ -183,7 +190,7 @@ superclean: clean
 
 build/$(ARCH)/lib%.$(LIBRARY_EXTENSION) : FijiITKInterface/FijiITKInterface_%.h c++/%JNIImplementation.cpp
 	mkdir -p build/$(ARCH)/
-	g++ -Wall -O3 -o $@ -I../c++ c++/$*JNIImplementation.cpp itkCVLab/itkFFTWLock.cxx -fPIC -shared  -I$(JDK_HOME)/include/ -I$(JDK_HOME)/Headers/ -I$(JDK_HOME)/include/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/  $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK) $(LINK_LIBRARIES_FFTW) 
+	g++ -Wall -O3 -o $@ -I$(FFTW_INCLUDE) -I../c++ c++/$*JNIImplementation.cpp itkCVLab/itkFFTWLock.cxx -fPIC -shared  -I$(JDK_HOME)/include/ -I$(JDK_HOME)/Headers/ -I$(JDK_HOME)/include/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/ $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK) $(LINK_LIBRARIES_FFTW)
 
 FijiITKInterface/FijiITKInterface_%.h : FijiITKInterface/%.class
 	$(FIJI_LAUNCHER) --javah --class-path=.:$(JDK_HOME)/lib/tools.jar -jni -d FijiITKInterface FijiITKInterface.$*
