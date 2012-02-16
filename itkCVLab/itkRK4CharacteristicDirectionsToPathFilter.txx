@@ -142,8 +142,8 @@ namespace itk
 	}
 	
 	
-	/**
-	 *
+	/** 
+	 * Check if the given continuous index is inside the domain, and in any case saturates it
 	 */
 	template <class TInputImage, class TOutputPath>
 	bool

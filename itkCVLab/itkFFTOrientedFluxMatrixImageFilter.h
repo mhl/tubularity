@@ -29,6 +29,7 @@
 #include <itkMultiplyImageFilter.h>
 #include <itkClipImageFilter.h>
 #include <itkRegionFromReferenceImageFilter.h>
+#include <itkMath.h>
 
 
 namespace itk

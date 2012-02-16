@@ -9,6 +9,8 @@
 #include "itkShiftScaleImageFilter.h"
 #include "itkOrientedFluxTraceMeasure.h"
 #include "itkOrientedFluxCrossSectionTraceMeasure.h"
+#include "itkNumericTraits.h"
+#include "itkExpImageFilter.h"
 
 
 #define SwitchCase(CaseValue, DerivedFilterType, BaseFilterObjectPtr, Call ) \
@@ -44,9 +46,6 @@ using std::endl;
 
 const unsigned int maxDimension = 3;
 
-
-
-
 // Main code goes here! 
 template<class TInputPixel, unsigned int VDimension> 
 typename itk::Image<float,VDimension+1>::Pointer
@@ -73,6 +72,8 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 	typedef float												OutputPixelType;
 	typedef itk::Image<OutputPixelType,Dimension>								OutputImageType;
 	typedef itk::Image<OutputPixelType,Dimension+1>								OutputScaleSpaceImageType;
+	
+	typedef itk::ExpImageFilter<OutputScaleSpaceImageType, OutputScaleSpaceImageType> ScaleSpaceExpFilterType;
 	
 	
 	typedef float												HessianPixelScalarType;
@@ -119,7 +120,7 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 	}
 	// Parse the input arguments.
 
-	double fixedSigmaForHessianComputation = minSpacing;//TODO : use the minimal ImageSpacing
+	double fixedSigmaForHessianComputation = 1.5*minSpacing;//TODO : use the minimal ImageSpacing
 	
 	bool brightObject = true;
 	//true	
@@ -172,16 +173,36 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 		typename MinMaxCalculatorForScaleSpaceImageType::Pointer minMaxCalc = MinMaxCalculatorForScaleSpaceImageType::New();
 		minMaxCalc->SetImage( FilterObjectPtr->GetNPlus1DImageOutput() );
 		minMaxCalc->Compute();
+		double expFactor;
+	  if(vcl_fabs(minMaxCalc->GetMaximum() - minMaxCalc->GetMinimum()) < 
+				itk::NumericTraits<float>::epsilon())
+	  {
+			std::cerr << "Score image pixel values are all the same: ";
+			std::cerr <<  minMaxCalc->GetMaximum() << std::endl;
+			exit(1);
+	  }
+    double maxToMinContrastRatio = 1e5	;//TODO: should be fixed according to the precision
+		expFactor = vcl_log(maxToMinContrastRatio) / 
+		static_cast<double>(minMaxCalc->GetMaximum() - minMaxCalc->GetMinimum());																	
+		
+																			
+		std::cout << "minTubularityValue " << minMaxCalc->GetMinimum() << std::endl;
+		std::cout << "maxTubularityValue " << minMaxCalc->GetMaximum() << std::endl;
+		std::cout << "expFactor " << expFactor << std::endl;
+																			
+																			
 		typename ShiftScaleFilterForScaleSpaceImageType::Pointer shiftScaleFilter = ShiftScaleFilterForScaleSpaceImageType::New();
 		shiftScaleFilter->SetInput( FilterObjectPtr->GetNPlus1DImageOutput() );
-		shiftScaleFilter->SetShift( -minMaxCalc->GetMinimum() );
-		shiftScaleFilter->SetScale( 1 / (minMaxCalc->GetMaximum() - minMaxCalc->GetMinimum()) );
-		shiftScaleFilter->Update();
-		tubularityScoreImage = shiftScaleFilter->GetOutput();
+		shiftScaleFilter->SetShift( 0.0 );
+		shiftScaleFilter->SetScale( expFactor );
+																			
+		typename ScaleSpaceExpFilterType::Pointer expFilter = ScaleSpaceExpFilterType::New();
+		expFilter->SetInput( shiftScaleFilter->GetOutput() );
+		expFilter->Update();
+		tubularityScoreImage =  expFilter->GetOutput();
 		return tubularityScoreImage;															
 	)		// end MultiScaleEnhancementFilterSwitchND
 	
-
 	return EXIT_SUCCESS;
 }
 
@@ -247,9 +268,7 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_OOFTubularityMeasure_OrientedFlux(J
 	Outputregion.SetIndex( Outputstart );
 	
 	float* outputImageData = (float*) jbOutS;
-	std::cout << Outputregion << std::endl;	
 	OutputIteratorType outit( outputImage, Outputregion);
-	std::cout << outputImage << std::endl;
 	outit.GoToBegin();
 	int length = width * height * NSlice;
 	for( int i = 0; i < length; ++i ) {
@@ -275,9 +294,7 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_OOFTubularityMeasure_OrientedFlux(J
 		std::cerr << e << std::endl;
 	}
 
-	
-
-  env->ReleaseByteArrayElements(jba,jbs,0);
+	env->ReleaseByteArrayElements(jba,jbs,0);
   env->ReleaseFloatArrayElements(jbOut, jbOutS,0);
 	env->ReleaseStringUTFChars( outputFileName, s );
     return 0;
