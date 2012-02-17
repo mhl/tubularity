@@ -585,7 +585,7 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_startSearch
     userData->semaphoreUserDataCopied = semaphorePointer.GetPointer();
 
     itk::ThreadFunctionType functionPointer = &ThreadedFunction;
-    int threadID = threader->SpawnThread( functionPointer, userData );
+    threader->SpawnThread( functionPointer, userData );
 
     // Wait until the userData has been copied by the other thread:
     semaphorePointer->Down();
