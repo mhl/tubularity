@@ -41,7 +41,7 @@ TubularityScoreImageType::Pointer tubularityScore;
 bool isTubularityScoreLoaded = false;
 std::vector< float > Outputpath;
 
-JavaVM * jvmHelloGoodbye = NULL;
+JavaVM * globalJVM = NULL;
 jobject pathResultObject;
 jobject javaSearchThread;
 itk::FastMutexLock::Pointer globalMutex = itk::FastMutexLock::New();
@@ -262,9 +262,9 @@ public:
 
 void releaseJVM(UserData * userData) {
     delete userData;
-    jvmHelloGoodbye->DetachCurrentThread();
+    globalJVM->DetachCurrentThread();
     globalMutex->Lock();
-    jvmHelloGoodbye = NULL;
+    globalJVM = NULL;
     globalMutex->Unlock();
 }
 
@@ -275,9 +275,9 @@ ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
 
     // From: http://www.adamish.com/blog/archives/327
 
-    int getEnvStat = jvmHelloGoodbye->GetEnv((void **)&env, JNI_VERSION_1_6);
+    int getEnvStat = globalJVM->GetEnv((void **)&env, JNI_VERSION_1_6);
     if (getEnvStat == JNI_EDETACHED) {
-        if (jvmHelloGoodbye->AttachCurrentThread((void **)&env, NULL) != 0) {
+        if (globalJVM->AttachCurrentThread((void **)&env, NULL) != 0) {
             cout << "Failed to attach to JVM" << endl;
             return ITK_THREAD_RETURN_VALUE;
         }
@@ -520,14 +520,14 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_startSearch
   jobject passedJavaSearchThread)
 {
     globalMutex->Lock();
-    if (jvmHelloGoodbye) {
+    if (globalJVM) {
         reportFinished(env, passedJavaSearchThread, false);
         globalMutex->Unlock();
         env->DeleteGlobalRef(pathResultObject);
         env->DeleteGlobalRef(javaSearchThread);
         return;
     } else {
-        env->GetJavaVM(&jvmHelloGoodbye);
+        env->GetJavaVM(&globalJVM);
         globalMutex->Unlock();
     }
 
