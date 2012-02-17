@@ -276,26 +276,17 @@ ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
     // From: http://www.adamish.com/blog/archives/327
 
     int getEnvStat = jvmHelloGoodbye->GetEnv((void **)&env, JNI_VERSION_1_6);
-    cout << "got back env" << env << endl;
     if (getEnvStat == JNI_EDETACHED) {
-        cout << "GetEnv: not attached" << endl;
-        cout << "jvm is: " << jvmHelloGoodbye << endl;
         if (jvmHelloGoodbye->AttachCurrentThread((void **)&env, NULL) != 0) {
             cout << "Failed to attach to JVM" << endl;
             return ITK_THREAD_RETURN_VALUE;
         }
-        cout << "attached now!!" << endl;
     } else if (getEnvStat == JNI_OK) {
-        //
     } else if (getEnvStat == JNI_EVERSION) {
-        cout << "GetEnv: version not supported" << endl;
+        cout << "Failed to attach to JVM with GetEnv: version not supported" << endl;
     }
 
-    cout << "In a different thread..." << endl;
-
     itk::MultiThreader::ThreadInfoStruct* threadInfo = static_cast<itk::MultiThreader::ThreadInfoStruct*>(param);
-
-    cout << "Got threadInfo" << endl;
 
     if (!threadInfo)  {
         cout << "Failed to get the thread info" << endl;
@@ -303,27 +294,16 @@ ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
         return ITK_THREAD_RETURN_VALUE;
     }
 
-    cout << "Going to get userData" << endl;
-
     userData = static_cast<UserData*>(threadInfo->UserData);
-
-    cout << "Got userData" << endl;
-
-    cout << "pathResultObject is: " << pathResultObject << endl;
 
     // Generate global references for the two objects that were passed in:
 
     jclass pathResultClass = env->GetObjectClass(pathResultObject);
 
-    cout << "Got pathResultClass" << endl;
-
     // Check that the float arrays are of the right length:
 
     int pt1Length = env->GetArrayLength(userData->jPoint1);
-    cout << "got one arraylength..." << endl;
     int pt2Length = env->GetArrayLength(userData->jPoint2);
-
-    cout << "Got float array lengths" << endl;
 
     if (pt1Length != 3) {
         cout << "wrong length of pt1" << endl;
@@ -348,8 +328,6 @@ ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
 
     // And convert them to C types:
 
-    cout << "converting to c types" << endl;
-
     jboolean isPoint1Copy, isPoint2Copy;
     jfloat * pt1 = env->GetFloatArrayElements(userData->jPoint1, &isPoint1Copy);
     jfloat * pt2 = env->GetFloatArrayElements(userData->jPoint2, &isPoint2Copy);
@@ -366,11 +344,7 @@ ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
 
     // Now get the filename:
 
-    cout << "getting the filename" << endl;
-
     const char * filename = env->GetStringUTFChars(userData->jTubularityFilename, NULL);
-
-    cout << "got the filename" << endl;
 
     if (!filename) {
         setErrorMessage(env,
@@ -381,8 +355,6 @@ ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
         releaseJVM(userData);
         return ITK_THREAD_RETURN_VALUE;
     }
-
-    cout << "going to up the semaphore " << userData->semaphoreUserDataCopied << " now" << endl;
 
     // Now we can safely allow the function that spawned this thread
     // to return:
@@ -493,15 +465,9 @@ ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
                             jResultArray);
     }
 
-    cout << "going to deletelocalref" << endl;
-
     env->DeleteLocalRef(jResultArray);
 
-    cout << "going to delete[] pathPoints" << endl;
-
     delete [] pathPoints;
-
-    cout << "going to setSuccess" << endl;
 
     // ------------------------------------------------------------------------
 
@@ -518,12 +484,9 @@ ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
 
     /* Now we can delete the global references to the two objects that
        were passed in: */
-    cout << "going to release pathResultObject" << endl;
     env->DeleteGlobalRef(pathResultObject);
-    cout << "going to release javaSearchThread" << endl;
     env->DeleteGlobalRef(javaSearchThread);
 
-    cout << "going to releaseJVM" << endl;
     releaseJVM(userData);
     return ITK_THREAD_RETURN_VALUE;
 }
@@ -557,7 +520,6 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_startSearch
   jobject passedJavaSearchThread)
 {
     globalMutex->Lock();
-    cout << "jvm is: " << jvmHelloGoodbye << endl << flush;
     if (jvmHelloGoodbye) {
         reportFinished(env, passedJavaSearchThread, false);
         globalMutex->Unlock();
