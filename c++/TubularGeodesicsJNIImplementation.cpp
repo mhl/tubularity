@@ -281,7 +281,8 @@ ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
         cout << "GetEnv: not attached" << endl;
         cout << "jvm is: " << jvmHelloGoodbye << endl;
         if (jvmHelloGoodbye->AttachCurrentThread((void **)&env, NULL) != 0) {
-            cout << "Failed to attach" << endl;
+            cout << "Failed to attach to JVM" << endl;
+            return ITK_THREAD_RETURN_VALUE;
         }
         cout << "attached now!!" << endl;
     } else if (getEnvStat == JNI_OK) {
