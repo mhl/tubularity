@@ -15,4 +15,7 @@ public class TubularGeodesics extends LibraryLoader {
                                    float [] p2,
                                    PathResult result,
                                    TubularGeodesicsTracer javaSearchThread);
+
+    public native void interruptSearch();
+
 }

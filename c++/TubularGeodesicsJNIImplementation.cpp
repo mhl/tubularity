@@ -100,12 +100,18 @@ void GetOptimalScale(IndexType *point)
   (*point)[Dimension] = bestScaleIndex;  
 }
 
+enum ExecuteReturnValues {
+    eSuccess = 0,
+    eInterrupted = 1,
+    eFailed = 2
+};
+
 // Computes the minimal path between 2 provided points
 /**
  * ITK related methods: 
  * 
  */
-void
+int
 Execute( float* pt1, float* pt2)
 {
 
@@ -158,8 +164,11 @@ Execute( float* pt1, float* pt2)
   subRegionToProcess.SetSize( sizeSubRegion );
 
   pathFilter->SetRegionToProcess(subRegionToProcess);
-  cout << "sub region to process" << subRegionToProcess << endl;
-  pathFilter->Update();
+  try {
+      pathFilter->Update();
+  } catch (itk::ProcessAborted &e) {
+      return eInterrupted;
+  }
   
 	SpacingType spacing = tubularityScore->GetSpacing();
   OriginType  origin = tubularityScore->GetOrigin();
@@ -184,6 +193,7 @@ Execute( float* pt1, float* pt2)
 	    Outputpath.push_back(vertex[i]*spacing[i]+origin[i]);
 	  }
 	}
+  return eSuccess;
 }
 
 /**
@@ -408,7 +418,33 @@ ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
      * the start and end points are given
      * One just needs to call the Execute method and convert the output
      */
-    Execute( copiedPt1, copiedPt2 );
+    try {
+        int executeResult = Execute( copiedPt1, copiedPt2 );
+        if (eInterrupted == executeResult) {
+            // ... then interrupt
+
+            /*
+            setSuccess(env,
+                       true,
+                       pathResultObject,
+                       pathResultClass);
+            */
+
+            reportFinished(env,
+                           javaSearchThread,
+                           false);
+            releaseJVM(userData);
+            return ITK_THREAD_RETURN_VALUE;
+        }
+    } catch(itk::ExceptionObject &e) {
+        env->ReleaseStringUTFChars(userData->jTubularityFilename, filename);
+        setErrorMessage(env,
+                        e.GetDescription(),
+                        pathResultObject,
+                        pathResultClass);
+        releaseJVM(userData);
+        return ITK_THREAD_RETURN_VALUE;
+    }
 
     long nb_points  = Outputpath.size() / 4;
     float * pathPoints = new float[nb_points*4];
@@ -483,6 +519,20 @@ ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
     return ITK_THREAD_RETURN_VALUE;
 }
 
+
+/*
+ * Class:     FijiITKInterface_TubularGeodesics
+ * Method:    interruptSearch
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_interruptSearch
+  (JNIEnv *, jobject)
+{
+    globalMutex->Lock();
+    pleaseStop = true;
+    globalMutex->Unlock();
+}
+
 /*
  * Class:     FijiITKInterface_TubularGeodesics
  * Method:    startSearch
@@ -515,7 +565,9 @@ JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_startSearch
     pathResultObject = env->NewGlobalRef(passedPathResultObject);
     javaSearchThread = env->NewGlobalRef(passedJavaSearchThread);
 
+    globalMutex->Lock();
     pleaseStop = false;
+    globalMutex->Unlock();
 
     /* The code here that spawns this as a separate thread is based on
        the example here:

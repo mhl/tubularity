@@ -23,6 +23,10 @@
 #include "vnl/vnl_math.h"
 #include <algorithm>
 
+#ifdef WITH_JAVA
+extern bool pleaseStop;
+#endif
+
 namespace itk
 {
 	
@@ -320,7 +324,17 @@ namespace itk
 				// update its neighbors
 			this->UpdateNeighbors( node.GetIndex(), speedImage, output );
 			
-			
+#ifdef WITH_JAVA
+			if (pleaseStop) {
+				this->InvokeEvent( AbortEvent() );
+				this->ResetPipeline();
+				ProcessAborted e(__FILE__,__LINE__);
+				e.SetDescription("Process aborted.");
+				e.SetLocation(ITK_LOCATION);
+				throw e;
+			}
+#endif
+
 				// Send events every certain number of points.
 			const double newProgress = currentValue / m_StoppingValue;
 			if( newProgress - oldProgress > 0.01 )  // update every 1%

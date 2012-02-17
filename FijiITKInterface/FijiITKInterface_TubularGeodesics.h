@@ -39,6 +39,14 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_TubularGeodesics_OrientedFlux
 JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_startSearch
   (JNIEnv *, jobject, jstring, jfloatArray, jfloatArray, jobject, jobject);
 
+/*
+ * Class:     FijiITKInterface_TubularGeodesics
+ * Method:    interruptSearch
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_FijiITKInterface_TubularGeodesics_interruptSearch
+  (JNIEnv *, jobject);
+
 #ifdef __cplusplus
 }
 #endif
