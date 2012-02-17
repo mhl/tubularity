@@ -159,13 +159,6 @@ namespace itk
 		//itkSetMacro(NumberOfSigmaSteps, unsigned int);
 		itkGetConstMacro(NumberOfSigmaSteps, unsigned int);
 		
-		/** Set/Get OrientedFluxToMeasureFilter. This will be a filter that takes 
-		 Hessian input image and produces enhanced output scalar image. The filter 
-		 must be derived from itk::ImageToImage filter */
-		itkSetObjectMacro( OrientedFluxToMeasureFilter, OrientedFluxToMeasureFilterType); 
-		itkGetObjectMacro( OrientedFluxToMeasureFilter, OrientedFluxToMeasureFilterType);
-		
-		
 		/** 
 		 * Methods to turn on/off flag to use a fixed sigma value for computing 
 		 * the Hessian images. By default, it is false, which means we use the 
@@ -210,17 +203,28 @@ namespace itk
 		itkGetConstMacro(GenerateScaleOutput,bool);
 		itkBooleanMacro(GenerateScaleOutput);
 		
-		/** Methods to turn on/off flag to generate an image with hessian 
-		 * matrices at each pixel for the best vesselness response */
+		/** 
+		 * Methods to turn on/off flag to generate an image with hessian 
+		 * matrices at each pixel for the best vesselness response 
+		 */
 		itkSetMacro(GenerateHessianOutput,bool);
 		itkGetConstMacro(GenerateHessianOutput,bool);
 		itkBooleanMacro(GenerateHessianOutput);
 		
-		/** Methods to turn on/off flag to generate the (N+1)-D image with 
-		 * hessian matrices at each pixel for all possible scales. */
+		/** 
+		 * Methods to turn on/off flag to generate the (N+1)-D image with 
+		 * hessian matrices at each pixel for all possible scales. 
+		 */
 		itkSetMacro(GenerateNPlus1DHessianOutput,bool);
 		itkGetConstMacro(GenerateNPlus1DHessianOutput,bool);
 		itkBooleanMacro(GenerateNPlus1DHessianOutput);
+		
+		/** 
+		 * Methods to turn on/off flag to treat the structures as bright or dark. 
+		 */
+		itkSetMacro(BrightObject,bool);
+		itkGetConstMacro(BrightObject,bool);
+		itkBooleanMacro(BrightObject);
 		
 		/** Methods to turn on/off flag to generate an image with hessian-based objectness 
 		 * measure values at each pixel. */
@@ -260,14 +264,16 @@ namespace itk
 		std::vector< RealType >														m_Sigmas;
 		
 		double																						m_FixedSigmaForHessianImage;
-		typename OrientedFluxToMeasureFilterType::Pointer	m_OrientedFluxToMeasureFilter;
-		DivideByCstImageFilterPointer											m_NormalizationFilter;
+		//typename OrientedFluxToMeasureFilterType::Pointer	m_OrientedFluxToMeasureFilter;
+		std::vector<typename OrientedFluxToMeasureFilterType::Pointer>		m_OrientedFluxToMeasureFilterList;
 		typename UpdateBufferType::Pointer								m_UpdateBuffer;
 		
 		bool																							m_GenerateScaleOutput;
 		bool																							m_GenerateHessianOutput;
 		bool																							m_GenerateNPlus1DHessianOutput;	
 		bool																							m_GenerateNPlus1DHessianMeasureOutput;
+		
+		bool																							m_BrightObject;
 		
 	};
 	

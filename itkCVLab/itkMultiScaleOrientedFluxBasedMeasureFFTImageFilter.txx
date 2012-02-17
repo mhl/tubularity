@@ -33,6 +33,7 @@
 #include "itkImageRegionIterator.h"
 #include "itkImageRegionConstIterator.h"
 #include "vnl/vnl_math.h"
+#include <omp.h>
 
 namespace itk
 {
@@ -52,12 +53,11 @@ namespace itk
 		m_SigmaMinimum = 0.2;
 		m_SigmaMaximum = 2.0;
 		
-		m_NumberOfSigmaSteps = 10;
+		m_NumberOfSigmaSteps = 2;
 		
 		m_Sigmas.clear();
 		
-		m_NormalizationFilter         = DivideByCstImageFilterType::New();
-		m_OrientedFluxToMeasureFilter = NULL;
+		m_OrientedFluxToMeasureFilterList.clear();
 		
 		//Instantiate Update buffer
 		m_UpdateBuffer = UpdateBufferType::New();
@@ -347,10 +347,10 @@ namespace itk
 	<TInputImage,THessianImage,TScaleImage,THessianToMeasureFilter,TOutputNDImage>
 	::GenerateData()
 	{
-		if( m_OrientedFluxToMeasureFilter.IsNull() )
-		{
-			itkExceptionMacro( " HessianToMeasure filter is not set. Use SetHessianToMeasureFilter() " );
-		}
+//		if( m_OrientedFluxToMeasureFilter.IsNull() )
+//		{
+//			itkExceptionMacro( " HessianToMeasure filter is not set. Use SetHessianToMeasureFilter() " );
+//		}
 		
 		// TODO: Move the allocation to a derived AllocateOutputs method
 		// Allocate the output
@@ -404,27 +404,58 @@ namespace itk
 		typename InputImageType::ConstPointer input = this->GetInput();
 		
 		std::cout << "sigma0 is :" << m_FixedSigmaForHessianImage << std::endl;
-		for (unsigned int i = 0; i < m_NumberOfSigmaSteps; i++)
+		
+		m_OrientedFluxToMeasureFilterList.resize(m_NumberOfSigmaSteps);
+		
+ #pragma omp parallel for schedule(dynamic)
+		for (int i = 0; i < ((int)m_NumberOfSigmaSteps); i++)
 		{
-			typename FFTOrientedFluxType::Pointer conv = FFTOrientedFluxType::New();
-			conv->SetInput( input );
-			conv->SetSigma0( m_FixedSigmaForHessianImage );
+			// Duplicate the input image. Calling the update is not thread safe
+			// with the pipelining if there are shared objects/filters among threads.
+			typename InputImageType::Pointer threadInput = InputImageType::New();
+			threadInput->SetOrigin(input->GetOrigin());
+			threadInput->SetSpacing(input->GetSpacing());
+			threadInput->SetDirection(input->GetDirection());
+			threadInput->SetLargestPossibleRegion(input->GetLargestPossibleRegion());
+			threadInput->SetRequestedRegion(input->GetRequestedRegion());
+			threadInput->SetBufferedRegion(input->GetBufferedRegion());
 			
-			std::cout << "at scale :" << m_Sigmas[i] << std::endl;
+			// Let the images use the same buffer instead of allocating a 
+			// new one for each thread.
+			threadInput->SetPixelContainer
+			(const_cast<typename InputImageType::PixelContainer*>(input->GetPixelContainer()));
+			
+			// Create the oriented flux filter.
+			typename FFTOrientedFluxType::Pointer conv = FFTOrientedFluxType::New();
+			conv->SetInput( threadInput );
+			conv->SetSigma0( m_FixedSigmaForHessianImage );
+			conv->SetNumberOfThreads( 1 );
 			/** TODO Feth: some justifications for themodified  scale */
-			conv->SetRadius( vcl_sqrt( m_Sigmas[i] * m_Sigmas[i] + m_FixedSigmaForHessianImage*m_FixedSigmaForHessianImage) );
+			conv->SetRadius( vcl_sqrt( m_Sigmas[i] * m_Sigmas[i] + m_FixedSigmaForHessianImage * m_FixedSigmaForHessianImage) );
 			itk::TimeProbe time;
 			time.Start();
 			conv->Update();
 			time.Stop();
-			std::cout << "elapsed time for computing the Oriented FLux matrix: " << time.GetMeanTime() << " seconds" <<  std::endl;
-						
-			m_OrientedFluxToMeasureFilter->SetInput( conv->GetOutput() );
-			m_OrientedFluxToMeasureFilter->Update();
 			
-			this->UpdateMaximumResponse(m_Sigmas[i], i);
+#pragma omp critical
+			{
+				std::cout << "at scale :" << m_Sigmas[i] << std::endl;
+				std::cout << "elapsed time for computing the Oriented FLux matrix: " << time.GetMeanTime() << " seconds" <<  std::endl;
+			}
+			
+			typename OrientedFluxToMeasureFilterType::Pointer orientedFluxToMeasureFilter = OrientedFluxToMeasureFilterType::New();
+			orientedFluxToMeasureFilter->SetBrightObject(m_BrightObject);
+			orientedFluxToMeasureFilter->SetInput( conv->GetOutput() );
+			orientedFluxToMeasureFilter->Update();
+			
+			m_OrientedFluxToMeasureFilterList[i] = orientedFluxToMeasureFilter;
 		}
 		
+		
+		for(unsigned int i = 0; i < m_NumberOfSigmaSteps; i++) 
+		{
+			this->UpdateMaximumResponse(m_Sigmas[i], i);
+		}
 		// Write out the best response to the output image
 		// we can assume that the meta-data should match between these two
 		// images, therefore we iterate over the desired output region
@@ -519,8 +550,8 @@ namespace itk
 		
 		typedef typename OrientedFluxToMeasureFilterType::OutputImageType OrientedFluxToMeasureOutputImageType;
 		
-		ImageRegionIterator<OrientedFluxToMeasureOutputImageType> it( m_OrientedFluxToMeasureFilter->GetOutput(), outputRegion );
-		ImageRegionConstIterator<HessianImageType> hit( m_OrientedFluxToMeasureFilter->GetInput(), outputRegion );
+		ImageRegionIterator<OrientedFluxToMeasureOutputImageType> it( m_OrientedFluxToMeasureFilterList[scaleLevel]->GetOutput(), outputRegion );
+		ImageRegionConstIterator<HessianImageType> hit( m_OrientedFluxToMeasureFilterList[scaleLevel]->GetInput(), outputRegion );
 		
 		it.GoToBegin();
 		hit.GoToBegin();
@@ -563,7 +594,9 @@ namespace itk
 			{
 				++hit;
 			}
-		}		
+		}
+		
+		m_OrientedFluxToMeasureFilterList[scaleLevel] = NULL;
 	}
 	
 	template <typename TInputImage,
@@ -656,7 +689,7 @@ namespace itk
 		os << indent << "SigmaMinimum:  " << m_SigmaMinimum << std::endl;
 		os << indent << "SigmaMaximum:  " << m_SigmaMaximum  << std::endl;
 		os << indent << "NumberOfSigmaSteps:  " << m_NumberOfSigmaSteps  << std::endl;
-		os << indent << "HessianToMeasureFilter: " << m_OrientedFluxToMeasureFilter << std::endl;
+		//os << indent << "HessianToMeasureFilter: " << m_OrientedFluxToMeasureFilterList << std::endl;
 		os << indent << "GenerateScaleOutput: " << m_GenerateScaleOutput << std::endl;
 		os << indent << "GenerateHessianOutput: " << m_GenerateHessianOutput << std::endl;
 		os << indent << "GenerateNPlus1DHessianMeasureOutput: " << m_GenerateNPlus1DHessianMeasureOutput << std::endl;
