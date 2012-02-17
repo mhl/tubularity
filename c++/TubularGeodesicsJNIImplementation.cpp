@@ -406,7 +406,15 @@ ITK_THREAD_RETURN_TYPE ThreadedFunction(void* param) {
 	  }
 	catch(itk::ExceptionObject &e)   
 	  {      
-	    std::cerr << e << endl;
+          std::cerr << e << endl;
+          env->ReleaseStringUTFChars(userData->jTubularityFilename, filename);
+          setErrorMessage(env,
+                          e.GetDescription(),
+                          pathResultObject,
+                          pathResultClass);
+
+          releaseJVM(userData);
+          return ITK_THREAD_RETURN_VALUE;
 	  }
 
 	tubularityScore = reader->GetOutput();
