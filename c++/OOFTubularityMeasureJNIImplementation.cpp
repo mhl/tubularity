@@ -143,7 +143,7 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 	objectnessFilter = orientedFluxMainCurvatureObjectnessFilter;
 	
 	typename OrientedFluxMainCurvatureMultiScaleEnhancementFilterType::Pointer orientedFluxMainCurvatureMultiScaleEnhancementFilter = OrientedFluxMainCurvatureMultiScaleEnhancementFilterType::New();
-	orientedFluxMainCurvatureMultiScaleEnhancementFilter->SetOrientedFluxToMeasureFilter( orientedFluxMainCurvatureObjectnessFilter );
+	//orientedFluxMainCurvatureMultiScaleEnhancementFilter->SetOrientedFluxToMeasureFilter( orientedFluxMainCurvatureObjectnessFilter );
 	multiScaleEnhancementFilter = orientedFluxMainCurvatureMultiScaleEnhancementFilter;		
 	// main function
 	MultiScaleEnhancementFilterSwitchND(
