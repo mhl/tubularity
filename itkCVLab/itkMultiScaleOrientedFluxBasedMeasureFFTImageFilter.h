@@ -221,6 +221,7 @@ namespace itk
 		
 		/** 
 		 * Methods to turn on/off flag to treat the structures as bright or dark. 
+		 * Its value is true by default.
 		 */
 		itkSetMacro(BrightObject,bool);
 		itkGetConstMacro(BrightObject,bool);

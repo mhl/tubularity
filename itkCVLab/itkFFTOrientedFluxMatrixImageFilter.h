@@ -32,6 +32,8 @@
 #include <itkMath.h>
 
 
+#include <itkSimpleFastMutexLock.h>
+
 namespace itk
 {
 	
@@ -165,6 +167,8 @@ namespace itk
 		int													m_GreatestPrimeFactor;
 		
 		OutputImageAdaptorPointer		m_ImageAdaptor;
+		
+		static SimpleFastMutexLock					m_Mutex;
 		
 	};
 	

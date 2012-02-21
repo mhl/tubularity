@@ -22,8 +22,12 @@
 
 #include <itkImageFileWriter.h>
 
+// todo get rid of this header for the insight submission
+#include <omp.h>
+
 namespace itk
 {
+	template <typename TInputImage, typename TOutputImage > SimpleFastMutexLock FFTOrientedFluxMatrixImageFilter<TInputImage,TOutputImage>::m_Mutex;
 	
 	/**
 	 * Constructor
@@ -285,7 +289,7 @@ namespace itk
 		{
 			itkExceptionMacro("Input image must be provided");
 		}
-		
+
 		// Prepare Image adaptor
 		m_ImageAdaptor->SetImage( this->GetOutput() );
 		m_ImageAdaptor->SetLargestPossibleRegion( this->GetInput()->GetLargestPossibleRegion() );
@@ -318,9 +322,19 @@ namespace itk
 		
 		typename FFTFilterType::Pointer fft = FFTFilterType::New();
 		fft->SetInput( pad->GetOutput() );
-		fft->SetNumberOfThreads( this->GetNumberOfThreads() );
+		
+		// todo uncomment for the insight submission
+//		fft->SetNumberOfThreads( this->GetNumberOfThreads() );
+		
+		// todo comment for the insight submission
+		fft->SetNumberOfThreads( omp_get_max_threads() );
+		
+		// This call to the FFT library has to be locked for 
+		// threaded (private) access to different instances of this object.
+		m_Mutex.Lock();
 		fft->Update();
-
+		m_Mutex.Unlock();
+		
 		unsigned int element = 0;
 		for(unsigned int i = 0; i < ImageDimension; i++)
 		{
@@ -345,10 +359,21 @@ namespace itk
 				typename IFFTFilterType::Pointer ifft = IFFTFilterType::New();
 				ifft->SetInput( mult->GetOutput() );
 				ifft->SetActualXDimensionIsOdd( false );
-				ifft->SetNumberOfThreads( this->GetNumberOfThreads() );
-				ifft->SetReleaseDataFlag( true );
-				ifft->Update();
+
+				// todo uncomment for the insight submission
+//				ifft->SetNumberOfThreads( this->GetNumberOfThreads() );
 				
+				// todo comment for the insight submission
+				ifft->SetNumberOfThreads( omp_get_max_threads() );
+				
+				ifft->SetReleaseDataFlag( true );
+				
+				// This call to the FFT library has to be locked for 
+				// threaded (private) access to different instances of this object.
+				m_Mutex.Lock();
+				ifft->Update();
+				m_Mutex.Unlock();
+								
 				typedef ClipImageFilter< InternalImageType, InternalImageType > ClipType;
 				typename ClipType::Pointer clip = ClipType::New();
 				clip->SetInput( ifft->GetOutput() );

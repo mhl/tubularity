@@ -64,6 +64,8 @@ namespace itk
 		
 		m_FixedSigmaForHessianImage = 1.0;
 		
+		m_BrightObject = true;
+		
 		m_GenerateScaleOutput = false;
 		m_GenerateHessianOutput = false;
 		m_GenerateNPlus1DHessianOutput = false;
@@ -689,7 +691,7 @@ namespace itk
 		os << indent << "SigmaMinimum:  " << m_SigmaMinimum << std::endl;
 		os << indent << "SigmaMaximum:  " << m_SigmaMaximum  << std::endl;
 		os << indent << "NumberOfSigmaSteps:  " << m_NumberOfSigmaSteps  << std::endl;
-		//os << indent << "HessianToMeasureFilter: " << m_OrientedFluxToMeasureFilterList << std::endl;
+		os << indent << "BrightObject: " << m_BrightObject << std::endl;
 		os << indent << "GenerateScaleOutput: " << m_GenerateScaleOutput << std::endl;
 		os << indent << "GenerateHessianOutput: " << m_GenerateHessianOutput << std::endl;
 		os << indent << "GenerateNPlus1DHessianMeasureOutput: " << m_GenerateNPlus1DHessianMeasureOutput << std::endl;
