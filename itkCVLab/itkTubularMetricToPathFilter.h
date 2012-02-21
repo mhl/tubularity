@@ -25,7 +25,7 @@
 
 #include "itkNumericTraits.h"
 #include "itkExceptionObject.h"
-#include "itkPolyLineParametricPathExtended.h"
+#include "itkPolyLineParametricTubularPath.h"
 #include "itkCommand.h"
 #include "itkImageToPathFilter.h"
 #include "itkFastMarchingUpwindGradientImageFilter2.h"
@@ -46,7 +46,7 @@ namespace itk
 	 */
 	
 	template <class TInputImage,
-	class TOutputPath = PolyLineParametricPathExtended<TInputImage::ImageDimension> >
+	class TOutputPath = PolyLineParametricTubularPath<TInputImage::ImageDimension> >
 	class ITK_EXPORT TubularMetricToPathFilter :
 	public ImageToPathFilter< TInputImage, TOutputPath >
 	{

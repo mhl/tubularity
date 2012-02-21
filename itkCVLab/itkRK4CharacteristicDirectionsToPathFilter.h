@@ -26,6 +26,7 @@
 #include "itkSingleValuedNonLinearOptimizer.h"
 #include "itkRegularStepGradientDescentOptimizer.h"
 #include "itkVectorLinearInterpolateImageFunction.h"
+#include "itkConstNeighborhoodIterator.h"
 
 
 
@@ -49,7 +50,7 @@ namespace itk
 	 * The user must provide the following:
 	 *    1 . the Characteristics directions
 	 *    1'. the distance function, in case the Characteristics is 0 at some point.
-	 *    2 . At least one path end point
+	 *    2 . At least one end point
 	 *			 (AddEndPoint() should be called at least once).
 	 *
 	 * The optimizer is hybrid and might use simple discrete descent if:
