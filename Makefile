@@ -82,8 +82,10 @@ $(info uname_M is: $(uname_M))
 $(error)
 endif
 
+
+## 	-luuid \ TODO
+
 LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
-	-luuid \
 	-lITKBasicFilters \
 	-lITKNumerics \
 	-lITKIO \
@@ -190,7 +192,7 @@ superclean: clean
 
 build/$(ARCH)/lib%.$(LIBRARY_EXTENSION) : FijiITKInterface/FijiITKInterface_%.h c++/%JNIImplementation.cpp
 	mkdir -p build/$(ARCH)/
-	g++ -Wall -O3 -DWITH_JAVA -o $@ -I$(FFTW_INCLUDE) -I../c++ c++/$*JNIImplementation.cpp itkCVLab/itkFFTWLock.cxx -fPIC -shared  -I$(JDK_HOME)/include/ -I$(JDK_HOME)/Headers/ -I$(JDK_HOME)/include/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/ $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK) $(LINK_LIBRARIES_FFTW)
+	g++ -Wall -O3 -DWITH_JAVA -o $@ -I$(FFTW_INCLUDE)  -I../c++ -fopenmp -lgomp c++/$*JNIImplementation.cpp itkCVLab/itkFFTWLock.cxx -fPIC -shared  -I$(JDK_HOME)/include/ -I$(JDK_HOME)/Headers/ -I$(JDK_HOME)/include/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/ $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK) $(LINK_LIBRARIES_FFTW)
 
 FijiITKInterface/FijiITKInterface_%.h : FijiITKInterface/%.class
 	$(FIJI_LAUNCHER) --javah --class-path=.:$(JDK_HOME)/lib/tools.jar -jni -d FijiITKInterface FijiITKInterface.$*
