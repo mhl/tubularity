@@ -148,7 +148,7 @@ Execute( float* pt1, float* pt2)
   sizeSubRegion[Dimension]  = region.GetSize()[Dimension];
   // extract sub region and pad it in the spatial domain
   //TODO: This shouldn't be hardcoded
-  int subRegionPad    = 10;
+  int subRegionPad    = 50;
   //TODO: This shouldn't be hardcoded
   // Anyways, we'll get rid of it soon ;-)
   for(unsigned int i = 0; i < Dimension; i++)
