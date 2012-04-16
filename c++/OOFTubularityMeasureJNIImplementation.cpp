@@ -123,27 +123,18 @@ Execute(typename itk::Image<TInputPixel,VDimension>::Pointer Input_Image, double
 	double fixedSigmaForHessianComputation = 1.5*minSpacing;//TODO : use the minimal ImageSpacing
 	
 	bool brightObject = true;
-	//true	
-	//bool normalizeTubularityImageBtw0And1 = true;
-	// for first try, fix to 3 (cross section eigen trace)	
 	HessianFilterTypeValue =  OrientedFluxCrossSectionCurvature;//OrientedFluxCrossSectionCurvature;
 	bool useAFixedSigmaForComputingHessianImage = true;
-	//bool scaleObjectnessMeasure = false;
-	//unsigned int objectDimension = 1; // default values just to avoid compiler 
 
-
-	//bool generateScaleImage = false;
 	bool generateScaleSpaceTubularityScoreImage = true;
 
-       	// typenames needed
-	ObjectnessBaseFilterType::Pointer objectnessFilter;
+  ObjectnessBaseFilterType::Pointer objectnessFilter;
 	MultiScaleEnhancementBaseFilterType::Pointer multiScaleEnhancementFilter;
 	typename HessianToOrientedFluxMainCurvatureObjectnessFilterType::Pointer orientedFluxMainCurvatureObjectnessFilter = HessianToOrientedFluxMainCurvatureObjectnessFilterType::New();
 	orientedFluxMainCurvatureObjectnessFilter->SetBrightObject( brightObject );
 	objectnessFilter = orientedFluxMainCurvatureObjectnessFilter;
 	
 	typename OrientedFluxMainCurvatureMultiScaleEnhancementFilterType::Pointer orientedFluxMainCurvatureMultiScaleEnhancementFilter = OrientedFluxMainCurvatureMultiScaleEnhancementFilterType::New();
-	//orientedFluxMainCurvatureMultiScaleEnhancementFilter->SetOrientedFluxToMeasureFilter( orientedFluxMainCurvatureObjectnessFilter );
 	multiScaleEnhancementFilter = orientedFluxMainCurvatureMultiScaleEnhancementFilter;		
 	// main function
 	MultiScaleEnhancementFilterSwitchND(
