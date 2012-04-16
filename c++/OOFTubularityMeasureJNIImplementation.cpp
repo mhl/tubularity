@@ -280,7 +280,6 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_OOFTubularityMeasure_OrientedFlux(J
 	 const char *s = env->GetStringUTFChars(outputFileName,NULL);
 	 if( ! s )
 		std::cerr << "Converting and allocating the filename string failed" << std::endl;
-
 	typedef itk::ImageFileWriter<OutputImageType>  ImageWriter;
 	ImageWriter::Pointer writer = ImageWriter::New();
 	writer->SetInput(outputImage);

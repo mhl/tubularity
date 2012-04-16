@@ -85,7 +85,7 @@ endif
 
 ## 	-luuid \ TODO
 
-
+# -framework CoreFoundation : works for macOS but not linux
 	
 LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
  $(ITK_LIBS)libitksys-4.1.a \
@@ -108,17 +108,14 @@ LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
  $(ITK_LIBS)libITKBiasCorrection-4.1.a \
  $(ITK_LIBS)libITKBioCell-4.1.a \
  $(ITK_LIBS)libITKFFT-4.1.a \
+ -lfftw3 -lfftw3_threads -lfftw3f -lfftw3f_threads \
  $(ITK_LIBS)libITKDICOMParser-4.1.a \
  $(ITK_LIBS)libITKEXPAT-4.1.a \
  $(ITK_LIBS)libITKIOXML-4.1.a \
  $(ITK_LIBS)libITKIOSpatialObjects-4.1.a \
  $(ITK_LIBS)libITKFEM-4.1.a \
- $(ITK_LIBS)libITKIOBMP-4.1.a \
  $(ITK_LIBS)libITKIOBioRad-4.1.a \
  $(ITK_LIBS)libitkopenjpeg-4.1.a \
- $(ITK_LIBS)libitkgdcmDICT-4.1.a \
- $(ITK_LIBS)libitkgdcmMSFF-4.1.a \
- $(ITK_LIBS)libITKIOGDCM-4.1.a \
  $(ITK_LIBS)libITKIOIPL-4.1.a \
  $(ITK_LIBS)libITKIOGE-4.1.a \
  $(ITK_LIBS)libITKIOGIPL-4.1.a \
@@ -135,7 +132,6 @@ LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
  $(ITK_LIBS)libITKIONRRD-4.1.a \
  $(ITK_LIBS)libitkpng-4.1.a \
  $(ITK_LIBS)libITKIOPNG-4.1.a \
- $(ITK_LIBS)libITKIOSiemens-4.1.a \
  $(ITK_LIBS)libITKIOStimulate-4.1.a \
  $(ITK_LIBS)libITKIOVTK-4.1.a \
  $(ITK_LIBS)libITKKLMRegionGrowing-4.1.a \
@@ -151,84 +147,13 @@ LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
  $(ITK_LIBS)libITKIOTransformBase-4.1.a \
  $(ITK_LIBS)libITKIOTransformHDF5-4.1.a \
  $(ITK_LIBS)libITKIOTransformInsightLegacy-4.1.a \
- $(ITK_LIBS)libITKIOTransformMatlab-4.1.a \
  $(ITK_LIBS)libITKOptimizersv4-4.1.a \
  $(ITK_LIBS)libITKReview-4.1.a \
  $(ITK_LIBS)libITKVideoCore-4.1.a \
  $(ITK_LIBS)libITKVideoIO-4.1.a \
- -lfftw3 \
- $(ITK_LIBS)libITKDICOMParser-4.1.a \
- $(ITK_LIBS)libITKgiftiio-4.1.a \
- $(ITK_LIBS)libITKLabelMap-4.1.a \
- $(ITK_LIBS)libITKQuadEdgeMesh-4.1.a \
- $(ITK_LIBS)libITKBiasCorrection-4.1.a \
- $(ITK_LIBS)libITKPolynomials-4.1.a \
- $(ITK_LIBS)libITKBioCell-4.1.a \
- $(ITK_LIBS)libITKFFT-4.1.a \
- -lfftw3 -lfftw3_threads -lfftw3f -lfftw3f_threads \
- $(ITK_LIBS)libITKIOSpatialObjects-4.1.a \
- $(ITK_LIBS)libITKIOXML-4.1.a \
- $(ITK_LIBS)libITKFEM-4.1.a \
- $(ITK_LIBS)libITKOptimizers-4.1.a \
- $(ITK_LIBS)libITKIOBMP-4.1.a \
- $(ITK_LIBS)libITKIOBioRad-4.1.a \
- $(ITK_LIBS)libITKIOGDCM-4.1.a \
- $(ITK_LIBS)libitkgdcmMSFF-4.1.a \
- $(ITK_LIBS)libitkopenjpeg-4.1.a \
- $(ITK_LIBS)libitkgdcmDICT-4.1.a \
- $(ITK_LIBS)libitkgdcmIOD-4.1.a \
- $(ITK_LIBS)libITKEXPAT-4.1.a \
- $(ITK_LIBS)libitkgdcmDSED-4.1.a \
- $(ITK_LIBS)libitkgdcmCommon-4.1.a \
- -framework CoreFoundation $(ITK_LIBS)libitkgdcmjpeg8-4.1.a \
- $(ITK_LIBS)libitkgdcmjpeg12-4.1.a \
- $(ITK_LIBS)libitkgdcmjpeg16-4.1.a \
- $(ITK_LIBS)libitkgdcmuuid-4.1.a \
- $(ITK_LIBS)libITKIOGIPL-4.1.a \
- $(ITK_LIBS)libITKIOJPEG-4.1.a \
- $(ITK_LIBS)libITKIOLSM-4.1.a \
- $(ITK_LIBS)libITKIOTIFF-4.1.a \
- $(ITK_LIBS)libitktiff-4.1.a \
- $(ITK_LIBS)libitkjpeg-4.1.a \
- $(ITK_LIBS)libITKIOMeta-4.1.a \
- $(ITK_LIBS)libITKMetaIO-4.1.a \
- $(ITK_LIBS)libITKIONIFTI-4.1.a \
- $(ITK_LIBS)libITKniftiio-4.1.a \
- $(ITK_LIBS)libITKznz-4.1.a \
- $(ITK_LIBS)libITKIONRRD-4.1.a \
- $(ITK_LIBS)libITKNrrdIO-4.1.a \
- $(ITK_LIBS)libITKIOPNG-4.1.a \
- $(ITK_LIBS)libitkpng-4.1.a \
- $(ITK_LIBS)libITKIOSiemens-4.1.a \
- $(ITK_LIBS)libITKIOGE-4.1.a \
- $(ITK_LIBS)libITKIOIPL-4.1.a \
- $(ITK_LIBS)libITKIOStimulate-4.1.a \
- $(ITK_LIBS)libITKIOVTK-4.1.a \
- $(ITK_LIBS)libITKKLMRegionGrowing-4.1.a \
- $(ITK_LIBS)libITKVTK-4.1.a \
- $(ITK_LIBS)libITKWatersheds-4.1.a \
- $(ITK_LIBS)libITKSpatialObjects-4.1.a \
- $(ITK_LIBS)libITKMesh-4.1.a \
- $(ITK_LIBS)libITKPath-4.1.a \
- $(ITK_LIBS)libITKIOTransformHDF5-4.1.a \
- $(ITK_LIBS)libitkhdf5_cpp-4.1.a \
- $(ITK_LIBS)libitkhdf5-4.1.a \
- $(ITK_LIBS)libitkzlib-4.1.a \
- $(ITK_LIBS)libITKIOTransformInsightLegacy-4.1.a \
- $(ITK_LIBS)libITKIOTransformMatlab-4.1.a \
- $(ITK_LIBS)libITKIOTransformBase-4.1.a \
- $(ITK_LIBS)libITKStatistics-4.1.a \
- $(ITK_LIBS)libitkNetlibSlatec-4.1.a \
- $(ITK_LIBS)libITKIOImageBase-4.1.a \
- $(ITK_LIBS)libITKVideoCore-4.1.a \
- $(ITK_LIBS)libITKCommon-4.1.a \
- $(ITK_LIBS)libitksys-4.1.a \
  $(ITK_LIBS)libITKVNLInstantiation-4.1.a \
- $(ITK_LIBS)libitkvnl_algo-4.1.a \
  $(ITK_LIBS)libitkv3p_lsqr-4.1.a \
- $(ITK_LIBS)libitkvnl-4.1.a \
  $(ITK_LIBS)libitkvcl-4.1.a \
- $(ITK_LIBS)libitkv3p_netlib-4.1.a \
  -lpthread \
  -lm \
  -ldl	
@@ -242,38 +167,12 @@ LINK_LIBRARIES_FFTW=-L$(FFTW_LIB) \
 	 -lfftw3_threads \
 	 -lfftw3f_threads
 
-INCLUDE_ITK=-ftemplate-depth-50 -Wall -Wno-deprecated -msse2 -I$(ITK) \
-	-I$(ITK)/Code/Algorithms \
-	-I$(ITK)/Code/BasicFilters \
-	-I$(ITK)/Code/Common \
-	-I$(ITK)/Code/Numerics \
-	-I$(ITK)/Code/IO \
-	-I$(ITK)/Code/Numerics/FEM \
-	-I$(ITK)/Code/Numerics/NeuralNetworks \
-	-I$(ITK)/Code/SpatialObject \
-	-I$(ITK)/Code/Review \
-	-I$(ITK)/Utilities/MetaIO \
-	-I$(ITK)/Utilities/NrrdIO \
-	-I$(ITK)/bin/Utilities/NrrdIO \
-	-I$(ITK)/Utilities/DICOMParser \
-	-I$(ITK)/bin/Utilities/DICOMParser \
-	-I$(ITK)/bin/Utilities/expat \
-	-I$(ITK)/Utilities/expat \
-	-I$(ITK)/Utilities/nifti/niftilib \
-	-I$(ITK)/Utilities/nifti/znzlib \
-	-I$(ITK)/Utilities/itkExtHdrs \
-	-I$(ITK)/bin/Utilities \
-	-I$(ITK)/Utilities \
-	-I$(ITK)/Code/Numerics/Statistics \
-	-I$(ITK)/Utilities/vxl/v3p/netlib \
-	-I$(ITK)/Utilities/vxl/vcl \
-	-I$(ITK)/Utilities/vxl/core \
-	-I$(ITK)/bin/Utilities/vxl/v3p/netlib \
-	-I$(ITK)/bin/Utilities/vxl/vcl \
-	-I$(ITK)/bin/Utilities/vxl/core \
-	-I$(ITK)/bin/Utilities/gdcm \
-	-I$(ITK)/Utilities/gdcm/src \
-	-IitkCVLab
+INCLUDE_ITK=-ftemplate-depth-50 -Wall -Wno-deprecated -msse2\
+  -IITKIOFactoryRegistration \
+	-I$(ITK) \
+	-I$(ITK)/vnl \
+	-IitkCVLab 
+
 
 all : plugins/OOFTubularityMeasure_Plugin.jar \
 	plugins/TubularGeodesics_Plugin.jar
@@ -307,7 +206,7 @@ superclean: clean
 
 build/$(ARCH)/lib%.$(LIBRARY_EXTENSION) : FijiITKInterface/FijiITKInterface_%.h c++/%JNIImplementation.cpp
 	mkdir -p build/$(ARCH)/
-	g++ -Wall -O3 -DWITH_JAVA -o $@ -I$(FFTW_INCLUDE)  -I../c++ -fopenmp -lgomp c++/$*JNIImplementation.cpp -fPIC -shared  -I$(JDK_HOME)/include/ -I$(JDK_HOME)/Headers/ -I$(JDK_HOME)/include/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/ $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK) $(LINK_LIBRARIES_FFTW)
+	g++ -Wall -O3 -DWITH_JAVA -DITK_IO_FACTORY_REGISTER_MANAGER -o $@ -I$(FFTW_INCLUDE)  -I../c++ -fopenmp -lgomp c++/$*JNIImplementation.cpp -fPIC -shared  -I$(JDK_HOME)/include/ -I$(JDK_HOME)/Headers/ -I$(JDK_HOME)/include/$(JAVA_ARCH_NAME)/ -lstdc++ -I./FijiITKInterface/ $(INCLUDE_ITK) $(LINK_LIBRARIES_ITK) $(LINK_LIBRARIES_FFTW)
 
 FijiITKInterface/FijiITKInterface_%.h : FijiITKInterface/%.class
 	$(FIJI_LAUNCHER) --javah --class-path=.:$(JDK_HOME)/lib/tools.jar -jni -d FijiITKInterface FijiITKInterface.$*
