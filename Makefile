@@ -108,12 +108,12 @@ LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
  $(ITK_LIBS)libITKBiasCorrection-4.1.a \
  $(ITK_LIBS)libITKBioCell-4.1.a \
  $(ITK_LIBS)libITKFFT-4.1.a \
- -lfftw3 -lfftw3_threads -lfftw3f -lfftw3f_threads \
  $(ITK_LIBS)libITKDICOMParser-4.1.a \
  $(ITK_LIBS)libITKEXPAT-4.1.a \
  $(ITK_LIBS)libITKIOXML-4.1.a \
  $(ITK_LIBS)libITKIOSpatialObjects-4.1.a \
  $(ITK_LIBS)libITKFEM-4.1.a \
+ $(ITK_LIBS)libITKIOBMP-4.1.a \
  $(ITK_LIBS)libITKIOBioRad-4.1.a \
  $(ITK_LIBS)libitkopenjpeg-4.1.a \
  $(ITK_LIBS)libITKIOIPL-4.1.a \
@@ -132,6 +132,7 @@ LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
  $(ITK_LIBS)libITKIONRRD-4.1.a \
  $(ITK_LIBS)libitkpng-4.1.a \
  $(ITK_LIBS)libITKIOPNG-4.1.a \
+ $(ITK_LIBS)libITKIOSiemens-4.1.a \
  $(ITK_LIBS)libITKIOStimulate-4.1.a \
  $(ITK_LIBS)libITKIOVTK-4.1.a \
  $(ITK_LIBS)libITKKLMRegionGrowing-4.1.a \
@@ -147,13 +148,74 @@ LINK_LIBRARIES_ITK=-L$(ITK_LIBS) \
  $(ITK_LIBS)libITKIOTransformBase-4.1.a \
  $(ITK_LIBS)libITKIOTransformHDF5-4.1.a \
  $(ITK_LIBS)libITKIOTransformInsightLegacy-4.1.a \
+ $(ITK_LIBS)libITKIOTransformMatlab-4.1.a \
  $(ITK_LIBS)libITKOptimizersv4-4.1.a \
  $(ITK_LIBS)libITKReview-4.1.a \
  $(ITK_LIBS)libITKVideoCore-4.1.a \
  $(ITK_LIBS)libITKVideoIO-4.1.a \
+ -lfftw3 \
+ $(ITK_LIBS)libITKDICOMParser-4.1.a \
+ $(ITK_LIBS)libITKgiftiio-4.1.a \
+ $(ITK_LIBS)libITKLabelMap-4.1.a \
+ $(ITK_LIBS)libITKQuadEdgeMesh-4.1.a \
+ $(ITK_LIBS)libITKBiasCorrection-4.1.a \
+ $(ITK_LIBS)libITKPolynomials-4.1.a \
+ $(ITK_LIBS)libITKBioCell-4.1.a \
+ $(ITK_LIBS)libITKFFT-4.1.a \
+ -lfftw3 -lfftw3_threads -lfftw3f -lfftw3f_threads \
+ $(ITK_LIBS)libITKIOSpatialObjects-4.1.a \
+ $(ITK_LIBS)libITKIOXML-4.1.a \
+ $(ITK_LIBS)libITKFEM-4.1.a \
+ $(ITK_LIBS)libITKOptimizers-4.1.a \
+ $(ITK_LIBS)libITKIOBMP-4.1.a \
+ $(ITK_LIBS)libITKIOBioRad-4.1.a \
+ $(ITK_LIBS)libitkopenjpeg-4.1.a \
+ $(ITK_LIBS)libITKEXPAT-4.1.a \
+ $(ITK_LIBS)libITKIOGIPL-4.1.a \
+ $(ITK_LIBS)libITKIOJPEG-4.1.a \
+ $(ITK_LIBS)libITKIOLSM-4.1.a \
+ $(ITK_LIBS)libITKIOTIFF-4.1.a \
+ $(ITK_LIBS)libitktiff-4.1.a \
+ $(ITK_LIBS)libitkjpeg-4.1.a \
+ $(ITK_LIBS)libITKIOMeta-4.1.a \
+ $(ITK_LIBS)libITKMetaIO-4.1.a \
+ $(ITK_LIBS)libITKIONIFTI-4.1.a \
+ $(ITK_LIBS)libITKniftiio-4.1.a \
+ $(ITK_LIBS)libITKznz-4.1.a \
+ $(ITK_LIBS)libITKIONRRD-4.1.a \
+ $(ITK_LIBS)libITKNrrdIO-4.1.a \
+ $(ITK_LIBS)libITKIOPNG-4.1.a \
+ $(ITK_LIBS)libitkpng-4.1.a \
+ $(ITK_LIBS)libITKIOSiemens-4.1.a \
+ $(ITK_LIBS)libITKIOGE-4.1.a \
+ $(ITK_LIBS)libITKIOIPL-4.1.a \
+ $(ITK_LIBS)libITKIOStimulate-4.1.a \
+ $(ITK_LIBS)libITKIOVTK-4.1.a \
+ $(ITK_LIBS)libITKKLMRegionGrowing-4.1.a \
+ $(ITK_LIBS)libITKVTK-4.1.a \
+ $(ITK_LIBS)libITKWatersheds-4.1.a \
+ $(ITK_LIBS)libITKSpatialObjects-4.1.a \
+ $(ITK_LIBS)libITKMesh-4.1.a \
+ $(ITK_LIBS)libITKPath-4.1.a \
+ $(ITK_LIBS)libITKIOTransformHDF5-4.1.a \
+ $(ITK_LIBS)libitkhdf5_cpp-4.1.a \
+ $(ITK_LIBS)libitkhdf5-4.1.a \
+ $(ITK_LIBS)libitkzlib-4.1.a \
+ $(ITK_LIBS)libITKIOTransformInsightLegacy-4.1.a \
+ $(ITK_LIBS)libITKIOTransformMatlab-4.1.a \
+ $(ITK_LIBS)libITKIOTransformBase-4.1.a \
+ $(ITK_LIBS)libITKStatistics-4.1.a \
+ $(ITK_LIBS)libitkNetlibSlatec-4.1.a \
+ $(ITK_LIBS)libITKIOImageBase-4.1.a \
+ $(ITK_LIBS)libITKVideoCore-4.1.a \
+ $(ITK_LIBS)libITKCommon-4.1.a \
+ $(ITK_LIBS)libitksys-4.1.a \
  $(ITK_LIBS)libITKVNLInstantiation-4.1.a \
+ $(ITK_LIBS)libitkvnl_algo-4.1.a \
  $(ITK_LIBS)libitkv3p_lsqr-4.1.a \
+ $(ITK_LIBS)libitkvnl-4.1.a \
  $(ITK_LIBS)libitkvcl-4.1.a \
+ $(ITK_LIBS)libitkv3p_netlib-4.1.a \
  -lpthread \
  -lm \
  -ldl	
