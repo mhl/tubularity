@@ -21,7 +21,7 @@ using std::flush;
 // Consts and typedefs
 const unsigned int Dimension = 3;
 const unsigned int SSDimension = Dimension+1;
-typedef float	                                                     TubularityScorePixelType;
+typedef float																												 TubularityScorePixelType;
 typedef itk::Image<TubularityScorePixelType,4>	                     TubularityScoreImageType;
 typedef TubularityScoreImageType::RegionType                         RegionType;
 typedef TubularityScoreImageType::SizeType                           SizeType;
@@ -120,7 +120,6 @@ Execute( float* pt1, float* pt2)
   
   // Set the tubularity score
   pathFilter->SetInput( tubularityScore );
-  pathFilter->SetScaleSpeedFactor(1.0);// TODO: shouldn't be hardcoded
 
   // Get the start and end points and give them to the path filter
   IndexType startPoint;
