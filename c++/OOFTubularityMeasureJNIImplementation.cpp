@@ -261,14 +261,13 @@ JNIEXPORT jint JNICALL Java_FijiITKInterface_OOFTubularityMeasure_OrientedFlux(J
 	float* outputImageData = (float*) jbOutS;
 	OutputIteratorType outit( outputImage, Outputregion);
 	outit.GoToBegin();
-	int length = width * height * NSlice;
-	for( int i = 0; i < length; ++i ) {
+	unsigned long int length = width * height * NSlice;
+	for(unsigned int i = 0; i < length; ++i ) {
 	  	outputImageData[i] = outit.Get();
 	  	++outit;
 	}
-	
 
-	 const char *s = env->GetStringUTFChars(outputFileName,NULL);
+	const char *s = env->GetStringUTFChars(outputFileName,NULL);
 	 if( ! s )
 		std::cerr << "Converting and allocating the filename string failed" << std::endl;
 	typedef itk::ImageFileWriter<OutputImageType>  ImageWriter;
