@@ -10,11 +10,12 @@
 #
 # Examples:
 # On Linux it may well be:
-#   /usr/lib/jvm/java-6-openjdk/
+#      /usr/lib/jvm/java-6-openjdk/
+#   or /usr/lib/jvm/java-6-openjdk-i386/
 # On Mac OS:
-#   /usr/lib/jvm/java-1.6.0-openjdk/include/
+#      /usr/lib/jvm/java-1.6.0-openjdk/include/
 # On Windows:
-#   [not sure yet]
+#     [not sure yet]
 
 ifndef JDK_HOME
 $(error The environment variable JDK_HOME must be defined.)
