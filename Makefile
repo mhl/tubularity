@@ -43,7 +43,7 @@ $(error ITK undefined)
 endif
 
 ifndef ITK_LIBS
-ITK_LIBS=$(ITK)/bin
+ITK_LIBS=$(ITK)/bin/
 endif
 
 ifndef FFTW_PREFIX
