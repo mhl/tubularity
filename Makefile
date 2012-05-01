@@ -30,21 +30,26 @@ $(error FIJI_LAUNCHER undefined)
 endif
 
 # Finally, you have to set up the environment variable ITK to point to
-# the root of an ITK installation.  This expects libraries to then be
-# under $ITK/bin.  If that is incorrect, you can override it by
-# setting the environment variable ITK_LIBS.
+# the root of an ITK installation.  You can override the ITK library
+# and header file location with ITK_LIBS and ITK_INCLUDE
 
 ifndef ITK
 $(info The environment variable ITK must be defined, and point)
 $(info to the root of an ITK installation, in this case where)
 $(info itkConfigure.h is found.  The ITK libraries are expected)
 $(info to be in $ITK/bin - if that is not the case, you should)
-$(info also define ITK_LIBS to point to their location.)
+$(info also define ITK_LIBS to point to their location. Similarly,)
+$(info header files are expected to be in $ITK - you can override)
+$(info that with ITK_INCLUDE)
 $(error ITK undefined)
 endif
 
 ifndef ITK_LIBS
 ITK_LIBS=$(ITK)/bin/
+endif
+
+ifndef ITK_INCLUDE
+ITK_INCLUDE=$(ITK)
 endif
 
 ifndef FFTW_PREFIX
@@ -232,8 +237,8 @@ LINK_LIBRARIES_FFTW=-L$(FFTW_LIB) \
 
 INCLUDE_ITK=-ftemplate-depth-50 -Wall -Wno-deprecated -msse2\
   -IITKIOFactoryRegistration \
-	-I$(ITK) \
-	-I$(ITK)/vnl \
+	-I$(ITK_INCLUDE) \
+	-I$(ITK_INCLUDE)/vnl \
 	-IitkCVLab 
 
 
