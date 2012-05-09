@@ -22,6 +22,8 @@ import java.io.OutputStream;
 
 import java.net.URL;
 
+import java.util.HashSet;
+
 /**
  * A simple library loader for JNI.
  *
@@ -31,7 +33,7 @@ import java.net.URL;
 
 public class LibraryLoader {
 	protected static File libraryDirectory;
-	protected static boolean libraryLoaded;
+	protected static HashSet<String> librariesLoaded = new HashSet<String>();
 	protected String baseURL;
 
 	protected LibraryLoader() {
@@ -44,9 +46,10 @@ public class LibraryLoader {
 					baseURL = string.substring(0, string.length() - classFile.length());
 			}
 		}
-		if (!libraryLoaded) {
-			loadLibrary();
-			libraryLoaded = true;
+		String classBasename = getClassBasename();
+		if (!librariesLoaded.contains(classBasename)) {
+			loadLibrary(classBasename);
+			librariesLoaded.add(classBasename);
 		}
 	}
 
@@ -85,9 +88,9 @@ public class LibraryLoader {
 		}
 	}
 
-	protected void loadLibrary() {
+	protected String getClassBasename() {
 		String className = getClass().getName();
-		loadLibrary(className.substring(className.lastIndexOf('.') + 1));
+		return className.substring(className.lastIndexOf('.') + 1);
 	}
 
 	protected void loadLibrary(String name) {
